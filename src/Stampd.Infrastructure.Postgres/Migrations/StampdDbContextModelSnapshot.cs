@@ -17,7 +17,7 @@ namespace Stampd.Infrastructure.Postgres.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.0")
+                .HasAnnotation("ProductVersion", "10.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -80,6 +80,63 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.HasIndex("TenantId", "OccurredAtUtc");
 
                     b.ToTable("AuditEvents", (string)null);
+                });
+
+            modelBuilder.Entity("Stampd.Core.Entities.BulkSendJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CompletedRows")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DocumentTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("FailedRows")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FailedRowsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(4096)
+                        .HasColumnType("character varying(4096)");
+
+                    b.Property<string>("PendingRowsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("TotalRows")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Status");
+
+                    b.ToTable("BulkSendJobs", (string)null);
                 });
 
             modelBuilder.Entity("Stampd.Core.Entities.DocumentTemplate", b =>
@@ -192,6 +249,9 @@ namespace Stampd.Infrastructure.Postgres.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
+
+                    b.Property<string>("SubmittedFieldValuesJson")
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -402,6 +462,133 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.ToTable("TemplateRecipientRoles", (string)null);
                 });
 
+            modelBuilder.Entity("Stampd.Core.Entities.WebhookDelivery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("EventType")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LastErrorMessage")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<int?>("LastResponseStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WebhookEndpointId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NextAttemptAtUtc");
+
+                    b.HasIndex("WebhookEndpointId");
+
+                    b.ToTable("WebhookDeliveries", (string)null);
+                });
+
+            modelBuilder.Entity("Stampd.Core.Entities.WebhookEndpoint", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ConsecutiveFailures")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("LastDeliveryAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LastSuccessAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Secret")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("SubscribedEvents")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "IsActive");
+
+                    b.ToTable("WebhookEndpoints", (string)null);
+                });
+
+            modelBuilder.Entity("Stampd.Infrastructure.Identity.OtpChallengeEntity", b =>
+                {
+                    b.Property<string>("VerificationId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("FailedAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Identifier")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("Salt")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("VerificationId");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.ToTable("OtpChallenges", (string)null);
+                });
+
             modelBuilder.Entity("Stampd.Core.Entities.AuditEvent", b =>
                 {
                     b.HasOne("Stampd.Core.Entities.Recipient", "Recipient")
@@ -487,6 +674,17 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                         .IsRequired();
 
                     b.Navigation("DocumentTemplate");
+                });
+
+            modelBuilder.Entity("Stampd.Core.Entities.WebhookDelivery", b =>
+                {
+                    b.HasOne("Stampd.Core.Entities.WebhookEndpoint", "WebhookEndpoint")
+                        .WithMany()
+                        .HasForeignKey("WebhookEndpointId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("WebhookEndpoint");
                 });
 
             modelBuilder.Entity("Stampd.Core.Entities.DocumentTemplate", b =>
