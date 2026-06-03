@@ -1,6 +1,15 @@
+using System.Text;
+using System.Threading.RateLimiting;
+
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.IdentityModel.Tokens;
 
 using Scalar.AspNetCore;
+
+using Serilog;
 
 using Stampd.Core;
 using Stampd.Core.Sealing;
@@ -13,7 +22,10 @@ using Stampd.Infrastructure;
 using Stampd.Infrastructure.Sqlite;
 using Stampd.Storage.FileSystem;
 using Stampd.Timestamp.FreeTsa;
+using Stampd.WebApi.Auth;
 using Stampd.WebApi.Endpoints;
+using Stampd.WebApi.Observability;
+using Stampd.WebApi.Observability.HealthChecks;
 using Stampd.WebApi.Services;
 using Stampd.WebApi.Tenancy;
 
@@ -22,30 +34,19 @@ PlatformFontResolver.Register();
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ---- Observability: Serilog FIRST so config loading is captured ----
+builder.ConfigureSerilog();
+
 // ---- Configuration ----
 var certPath = builder.Configuration["Stampd:SigningCertificate:Pkcs12Path"]
-    ?? Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".stampd",
-        "spike-signer.pfx");
-
-var certPassword = builder.Configuration["Stampd:SigningCertificate:Password"]
-    ?? "stampd-spike";
-
+    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".stampd", "spike-signer.pfx");
+var certPassword = builder.Configuration["Stampd:SigningCertificate:Password"] ?? "stampd-spike";
 var enableTsa = builder.Configuration.GetValue("Stampd:Tsa:Enabled", defaultValue: true);
 var tsaEndpoint = builder.Configuration["Stampd:Tsa:Endpoint"];
-
 var storageRoot = builder.Configuration["Stampd:Storage:FileSystemRoot"]
-    ?? Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".stampd",
-        "documents");
-
+    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".stampd", "documents");
 var sqlitePath = builder.Configuration["Stampd:Database:SqlitePath"]
-    ?? Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".stampd",
-        "stampd.db");
+    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".stampd", "stampd.db");
 
 Directory.CreateDirectory(Path.GetDirectoryName(sqlitePath)!);
 Directory.CreateDirectory(storageRoot);
@@ -59,38 +60,25 @@ builder.Services.AddStampdSqlite($"Data Source={sqlitePath}");
 // Document storage
 builder.Services.AddFileSystemDocumentStorage(storageRoot);
 
-// Header-based tenant context: reads X-Stampd-Tenant from the request and falls back to
-// the configured default. Production should swap this for a claims-based resolver once
-// AuthN/AuthZ is wired in.
+// Tenant context (header-based)
 var defaultTenantId = Guid.Parse(
-    builder.Configuration["Stampd:Tenancy:DefaultTenantId"]
-    ?? "00000000-0000-0000-0000-000000000001");
+    builder.Configuration["Stampd:Tenancy:DefaultTenantId"] ?? "00000000-0000-0000-0000-000000000001");
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ITenantContext>(sp =>
     new HttpTenantContext(sp.GetRequiredService<IHttpContextAccessor>(), defaultTenantId));
 
-// Sealing — pick between LocalCertificate and Vault based on configuration.
+// Sealing: LocalCertificate or Vault by config.
 var sealingProvider = builder.Configuration["Stampd:Sealing:Provider"] ?? "Local";
-
 if (string.Equals(sealingProvider, "Vault", StringComparison.OrdinalIgnoreCase))
 {
-    var addressRaw = builder.Configuration["Stampd:Sealing:Vault:Address"]
-        ?? throw new InvalidOperationException("Stampd:Sealing:Vault:Address is required when Provider=Vault.");
-    var vaultToken = builder.Configuration["Stampd:Sealing:Vault:Token"]
-        ?? throw new InvalidOperationException("Stampd:Sealing:Vault:Token is required when Provider=Vault.");
-    var keyName = builder.Configuration["Stampd:Sealing:Vault:KeyName"]
-        ?? throw new InvalidOperationException("Stampd:Sealing:Vault:KeyName is required when Provider=Vault.");
-    var vaultCertPath = builder.Configuration["Stampd:Sealing:Vault:CertificatePath"]
-        ?? throw new InvalidOperationException("Stampd:Sealing:Vault:CertificatePath is required when Provider=Vault.");
-    var transitMount = builder.Configuration["Stampd:Sealing:Vault:TransitMountPath"] ?? "transit";
-
     builder.Services.AddVaultSealing(options =>
     {
-        options.VaultAddress = new Uri(addressRaw);
-        options.Token = vaultToken;
-        options.TransitMountPath = transitMount;
-        options.KeyName = keyName;
-        options.CertificatePath = vaultCertPath;
+        options.VaultAddress = new Uri(builder.Configuration["Stampd:Sealing:Vault:Address"]
+            ?? throw new InvalidOperationException("Vault:Address required"));
+        options.Token = builder.Configuration["Stampd:Sealing:Vault:Token"];
+        options.TransitMountPath = builder.Configuration["Stampd:Sealing:Vault:TransitMountPath"] ?? "transit";
+        options.KeyName = builder.Configuration["Stampd:Sealing:Vault:KeyName"];
+        options.CertificatePath = builder.Configuration["Stampd:Sealing:Vault:CertificatePath"];
     });
 }
 else
@@ -102,14 +90,11 @@ else
     });
 }
 
-// TSA (optional)
 if (enableTsa)
 {
-    builder.Services.AddFreeTsaTimestampAuthority(
-        tsaEndpoint is null ? null : new Uri(tsaEndpoint));
+    builder.Services.AddFreeTsaTimestampAuthority(tsaEndpoint is null ? null : new Uri(tsaEndpoint));
 }
 
-// Engine
 builder.Services.AddSingleton<IStampdEngine>(sp =>
 {
     var sealing = sp.GetRequiredService<ICryptographicSealingProvider>();
@@ -117,13 +102,74 @@ builder.Services.AddSingleton<IStampdEngine>(sp =>
     return new PdfSharpStampdEngine(sealing, tsa);
 });
 
-// Workflow service (orchestrates template + recipient state)
 builder.Services.AddScoped<SigningWorkflowService>();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
-    options.SerializerOptions.Converters.Add(
-        new System.Text.Json.Serialization.JsonStringEnumConverter());
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
+
+// ---- Health checks ----
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<StampdDbContext>(
+        name: "database",
+        tags: ["live", "ready"])
+    .AddCheck<SealingProviderHealthCheck>(
+        name: "sealing-provider",
+        tags: ["ready"])
+    .AddCheck<TimestampAuthorityHealthCheck>(
+        name: "timestamp-authority",
+        failureStatus: HealthStatus.Degraded,
+        tags: ["ready"]);
+
+// ---- AuthN/AuthZ ----
+var jwtOptions = new JwtOptions();
+builder.Configuration.GetSection("Stampd:Auth:Jwt").Bind(jwtOptions);
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Stampd:Auth:Jwt"));
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ClockSkew = TimeSpan.FromMinutes(2),
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// ---- Rate limiting ----
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("sign", httpContext =>
+        RateLimitPartition.GetTokenBucketLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 20,
+                ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+                TokensPerPeriod = 10,
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }));
+});
+
+// ---- Request size caps (50 MB) ----
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 50 * 1024 * 1024;
+});
+builder.WebHost.ConfigureKestrel(kestrel =>
+{
+    kestrel.Limits.MaxRequestBodySize = 50 * 1024 * 1024;
 });
 
 var app = builder.Build();
@@ -136,6 +182,9 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ---- Pipeline ----
+app.UseSerilogRequestLogging();
+app.UseMiddleware<CorrelationIdMiddleware>();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -148,12 +197,58 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapHealth();
-app.MapSign();
-app.MapBinarySign();
-app.MapTemplates();
-app.MapSigningRequests();
-app.MapRecipientSigning();
-app.MapSignedDocuments();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
 
-app.Run();
+// ---- Endpoints ----
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("live"),
+    ResponseWriter = HealthCheckJsonResponseWriter.WriteResponseAsync,
+}).AllowAnonymous();
+
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = HealthCheckJsonResponseWriter.WriteResponseAsync,
+}).AllowAnonymous();
+
+// Endpoint extension methods return IEndpointRouteBuilder, which can't chain
+// RequireAuthorization / AllowAnonymous / RequireRateLimiting directly. Wrap each
+// extension call in a MapGroup that pre-applies the policy — the group's conventions
+// propagate to every endpoint mapped inside it.
+
+// Anonymous surface: health, dev token issuance, recipient signing (recipient is
+// authenticated by the per-recipient access token in the URL, not by JWT).
+var anonGroup = app.MapGroup("").AllowAnonymous();
+anonGroup.MapHealth();
+anonGroup.MapAuth();
+anonGroup.MapRecipientSigning();
+
+// Sign endpoints: rate-limited AND require auth.
+var signGroup = app.MapGroup("")
+    .RequireAuthorization()
+    .RequireRateLimiting("sign");
+signGroup.MapSign();
+signGroup.MapBinarySign();
+
+// Management endpoints: auth required, no rate limit (admin actions, not sign hot path).
+var managementGroup = app.MapGroup("").RequireAuthorization();
+managementGroup.MapTemplates();
+managementGroup.MapSigningRequests();
+managementGroup.MapSignedDocuments();
+
+try
+{
+    Log.Information("Stampd.WebApi starting on {EnvName}", app.Environment.EnvironmentName);
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Stampd.WebApi terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
