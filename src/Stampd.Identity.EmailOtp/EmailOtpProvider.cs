@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Security.Cryptography;
 
 using Stampd.Core.Identity;
@@ -60,7 +59,7 @@ public sealed class EmailOtpProvider : IIdentityVerificationProvider
         var expiresAt = DateTimeOffset.UtcNow.Add(_options.ChallengeLifetime);
 
         await _store
-            .StoreAsync(new OtpChallenge(verificationId, subject.Email, code, expiresAt), cancellationToken)
+            .StoreAsync(new OtpChallenge(verificationId, Identifier: subject.Email, Code: code, ExpiresAtUtc: expiresAt), cancellationToken)
             .ConfigureAwait(false);
 
         await _emailSender.SendAsync(new EmailMessage(
@@ -99,15 +98,52 @@ public sealed class EmailOtpProvider : IIdentityVerificationProvider
             return new IdentityVerificationResult(Succeeded: false, FailureReason: "Verification code expired.");
         }
 
-        if (!CryptographicOperations.FixedTimeEquals(
-            System.Text.Encoding.UTF8.GetBytes(challenge.Code),
-            System.Text.Encoding.UTF8.GetBytes(response.Trim())))
+        bool matched;
+        if (challenge.Code.StartsWith("$dbstore$", StringComparison.Ordinal))
+        {
+            // Persistent store returned a salt:hash envelope — we never have access to the
+            // plaintext code. Compute SHA-256(response||salt) and compare against the stored
+            // hash. The envelope format and verification helper live in DbOtpChallengeStore;
+            // we reproduce the comparison inline here to avoid taking a hard reference from
+            // this OTP provider to the Infrastructure project.
+            matched = VerifySentinelEnvelope(challenge.Code, response.Trim());
+        }
+        else
+        {
+            matched = CryptographicOperations.FixedTimeEquals(
+                System.Text.Encoding.UTF8.GetBytes(challenge.Code),
+                System.Text.Encoding.UTF8.GetBytes(response.Trim()));
+        }
+
+        if (!matched)
         {
             return new IdentityVerificationResult(Succeeded: false, FailureReason: "Incorrect code.");
         }
 
         await _store.RemoveAsync(verificationId, cancellationToken).ConfigureAwait(false);
         return new IdentityVerificationResult(Succeeded: true);
+    }
+
+    private static bool VerifySentinelEnvelope(string envelopeCode, string response)
+    {
+        // Envelope: "$dbstore${saltHex}:{hashHex}"
+        const string sentinel = "$dbstore$";
+        var payload = envelopeCode[sentinel.Length..];
+        var colon = payload.IndexOf(':', StringComparison.Ordinal);
+        if (colon <= 0)
+        {
+            return false;
+        }
+
+        var saltHex = payload[..colon];
+        var storedHash = payload[(colon + 1)..];
+
+        var bytes = System.Text.Encoding.UTF8.GetBytes(response + ":" + saltHex);
+        var computed = Convert.ToHexString(SHA256.HashData(bytes));
+
+        return CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.UTF8.GetBytes(computed),
+            System.Text.Encoding.UTF8.GetBytes(storedHash));
     }
 
     private static string GenerateCode()
@@ -132,32 +168,7 @@ public sealed class EmailOtpOptions
     public TimeSpan ChallengeLifetime { get; set; } = TimeSpan.FromMinutes(10);
 }
 
-public sealed record OtpChallenge(string VerificationId, string Email, string Code, DateTimeOffset ExpiresAtUtc);
-
-/// <summary>Pluggable challenge store. Default impl is in-memory; production swaps for DB/Redis.</summary>
-public interface IOtpChallengeStore
-{
-    Task StoreAsync(OtpChallenge challenge, CancellationToken cancellationToken = default);
-    Task<OtpChallenge?> RetrieveAsync(string verificationId, CancellationToken cancellationToken = default);
-    Task RemoveAsync(string verificationId, CancellationToken cancellationToken = default);
-}
-
-public sealed class InMemoryOtpChallengeStore : IOtpChallengeStore
-{
-    private readonly ConcurrentDictionary<string, OtpChallenge> _store = new();
-
-    public Task StoreAsync(OtpChallenge challenge, CancellationToken cancellationToken = default)
-    {
-        _store[challenge.VerificationId] = challenge;
-        return Task.CompletedTask;
-    }
-
-    public Task<OtpChallenge?> RetrieveAsync(string verificationId, CancellationToken cancellationToken = default)
-        => Task.FromResult(_store.TryGetValue(verificationId, out var c) ? c : null);
-
-    public Task RemoveAsync(string verificationId, CancellationToken cancellationToken = default)
-    {
-        _store.TryRemove(verificationId, out _);
-        return Task.CompletedTask;
-    }
-}
+// OtpChallenge, IOtpChallengeStore, and InMemoryOtpChallengeStore live in
+// Stampd.Core.Identity since the SmsOtp provider needs them too. This file used to host
+// them; type-forward aliases below preserve the old namespace for any adopters who
+// referenced them directly. Prefer the Stampd.Core.Identity types in new code.

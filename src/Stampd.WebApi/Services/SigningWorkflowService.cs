@@ -1,9 +1,12 @@
 using System.Security.Cryptography;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using Stampd.Core;
 using Stampd.Core.Entities;
+using Stampd.Core.Notifications;
 using Stampd.Core.Storage;
 using Stampd.Infrastructure;
 using Stampd.WebApi.Models;
@@ -26,17 +29,26 @@ public sealed class SigningWorkflowService
     private readonly IDocumentStorageProvider _storage;
     private readonly IStampdEngine _engine;
     private readonly PadesDefaults _padesDefaults;
+    private readonly IEmailSender? _emailSender;
+    private readonly WorkflowEmailOptions? _emailOptions;
+    private readonly ILogger<SigningWorkflowService> _logger;
 
     public SigningWorkflowService(
         StampdDbContext db,
         IDocumentStorageProvider storage,
         IStampdEngine engine,
-        PadesDefaults padesDefaults)
+        PadesDefaults padesDefaults,
+        IEmailSender? emailSender = null,
+        WorkflowEmailOptions? emailOptions = null,
+        ILogger<SigningWorkflowService>? logger = null)
     {
         _db = db;
         _storage = storage;
         _engine = engine;
         _padesDefaults = padesDefaults;
+        _emailSender = emailSender;
+        _emailOptions = emailOptions;
+        _logger = logger ?? NullLogger<SigningWorkflowService>.Instance;
     }
 
     /// <summary>Creates a new SigningRequest from a template + recipient assignments, marks it Sent.</summary>
@@ -97,7 +109,80 @@ public sealed class SigningWorkflowService
         _db.SigningRequests.Add(request);
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
 
+        // Best-effort: send invitation emails to recipients we just promoted to Invited.
+        // Failures are logged but do NOT roll back the dispatch — the API response still
+        // carries access tokens so the caller has a fallback notification channel.
+        await TrySendInvitationEmailsAsync(request, ct).ConfigureAwait(false);
+
         return request;
+    }
+
+    private async Task TrySendInvitationEmailsAsync(SigningRequest request, CancellationToken ct)
+    {
+        if (_emailSender is null || _emailOptions is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_emailOptions.SigningUrlTemplate))
+        {
+            _logger.LogDebug(
+                "Workflow email skipped for request {RequestId}: SigningUrlTemplate not configured.",
+                request.Id);
+            return;
+        }
+
+        foreach (var recipient in request.Recipients.Where(r => r.Status == RecipientStatus.Invited))
+        {
+            try
+            {
+                var url = _emailOptions.SigningUrlTemplate.Replace(
+                    "{accessToken}",
+                    recipient.AccessToken,
+                    StringComparison.Ordinal);
+
+                var subject = $"{_emailOptions.ProductName}: Action required — {request.Subject}";
+                var plain = $"""
+                    Hi {recipient.Name},
+
+                    {request.Subject}
+
+                    {request.Message}
+
+                    Please review and sign here: {url}
+
+                    — {_emailOptions.ProductName}
+                    """;
+                var html = $"""
+                    <p>Hi {System.Net.WebUtility.HtmlEncode(recipient.Name)},</p>
+                    <p>{System.Net.WebUtility.HtmlEncode(request.Subject)}</p>
+                    <p>{System.Net.WebUtility.HtmlEncode(request.Message ?? string.Empty)}</p>
+                    <p><a href="{url}">Review and sign your document</a></p>
+                    <p>— {System.Net.WebUtility.HtmlEncode(_emailOptions.ProductName)}</p>
+                    """;
+
+                await _emailSender.SendAsync(new EmailMessage(
+                    FromAddress: _emailOptions.FromAddress,
+                    FromDisplayName: _emailOptions.FromDisplayName,
+                    To: [new EmailAddress(recipient.Email, recipient.Name)],
+                    Subject: subject,
+                    PlainTextBody: plain,
+                    HtmlBody: html),
+                    ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Invitation email failed for recipient {RecipientId} on request {RequestId}; recipient access URL is still returned via the API response.",
+                    recipient.Id,
+                    request.Id);
+            }
+        }
     }
 
     /// <summary>Returns the (request, recipient) pair for a given access token, or null if not found.</summary>

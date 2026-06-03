@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 using Stampd.Core.Entities;
 using Stampd.Core.Tenancy;
+using Stampd.Infrastructure.Identity;
 
 namespace Stampd.Infrastructure;
 
@@ -28,6 +29,7 @@ public class StampdDbContext : DbContext
     public DbSet<Recipient> Recipients => Set<Recipient>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<SignedDocumentRecord> SignedDocumentRecords => Set<SignedDocumentRecord>();
+    public DbSet<OtpChallengeEntity> OtpChallenges => Set<OtpChallengeEntity>();
 
     /// <summary>
     /// Resolves the tenant id used by every global query filter. Lifted to a method so
