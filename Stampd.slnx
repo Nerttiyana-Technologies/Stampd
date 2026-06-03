@@ -22,6 +22,7 @@
     <Project Path="src/Stampd.Identity.SmsOtp/Stampd.Identity.SmsOtp.csproj" />
     <Project Path="src/Stampd.Identity.Kba/Stampd.Identity.Kba.csproj" />
     <Project Path="src/Stampd.WebApi/Stampd.WebApi.csproj" />
+    <Project Path="src/Stampd.UI/Stampd.UI.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/Stampd.Engine.Smoke/Stampd.Engine.Smoke.csproj" />

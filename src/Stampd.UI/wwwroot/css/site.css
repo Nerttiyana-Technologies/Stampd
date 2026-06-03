@@ -1,0 +1,742 @@
+/* ============================================================
+   Stampd — executive design system
+   Ported from the SalesBookingLedger pattern: deep-navy gradient
+   topbar, hero card with radial highlights, KPI tiles, pill chips,
+   subtle fade-up entrance animations, Inter font.
+   ============================================================ */
+
+html, body {
+    font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    background: var(--stampd-bg);
+    color: var(--stampd-fg);
+}
+
+h1:focus { outline: none; }
+
+/* ============================================================
+   Theme tokens — switched via [data-theme] on <html>
+   ============================================================ */
+
+:root,
+:root[data-theme="light"] {
+    --stampd-bg: #f4f6f9;
+    --stampd-fg: #1e293b;
+    --stampd-surface: #ffffff;
+    --stampd-surface-alt: #f8fafc;
+    --stampd-border: #e2e8f0;
+    --stampd-muted: #64748b;
+    /* Topbar is a slim, very-dark slate so the hero card (brighter blue) reads as a
+       distinct surface against it. Previously both used the same navy gradient which
+       made the visual hierarchy collapse. */
+    --stampd-topbar-bg: #0a1628;
+    --stampd-topbar-fg: #ffffff;
+    --stampd-brand-sub: rgba(255, 255, 255, 0.7);
+    --stampd-footer-bg: #ffffff;
+    --stampd-footer-fg: #64748b;
+    --stampd-accent: #1a5698;
+    --stampd-accent-deep: #0b3c6e;
+    --stampd-accent-light: #2b7fce;
+    --stampd-success: #2e7d32;
+    --stampd-warning: #ef6c00;
+    --stampd-danger: #c62828;
+
+    --stampd-shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --stampd-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
+    --stampd-shadow-lg: 0 10px 30px rgba(11, 60, 110, 0.25);
+}
+
+:root[data-theme="dark"] {
+    --stampd-bg: #0f172a;
+    --stampd-fg: #e2e8f0;
+    --stampd-surface: #0f1e36;
+    --stampd-surface-alt: #0b1220;
+    --stampd-border: #1e3154;
+    --stampd-muted: #94a3b8;
+    --stampd-topbar-bg: #000814;
+    --stampd-topbar-fg: #e2e8f0;
+    --stampd-brand-sub: rgba(226, 232, 240, 0.6);
+    --stampd-footer-bg: #0b1220;
+    --stampd-footer-fg: #94a3b8;
+    --stampd-accent: #2b7fce;
+    --stampd-accent-deep: #0b3c6e;
+    --stampd-accent-light: #93c5fd;
+    --stampd-success: #3fb950;
+    --stampd-warning: #d29922;
+    --stampd-danger: #f43f5e;
+
+    --stampd-shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+    --stampd-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+    --stampd-shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+@keyframes stampd-fade-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes stampd-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* ============================================================
+   App shell
+   ============================================================ */
+.stampd-app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: var(--stampd-bg);
+    color: var(--stampd-fg);
+}
+
+.stampd-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--stampd-topbar-bg);
+    color: var(--stampd-topbar-fg);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.stampd-topbar-inner {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0.6rem 1.5rem;
+    min-height: 56px;
+    max-width: 1440px;
+    margin: 0 auto;
+}
+
+.stampd-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+}
+
+.stampd-brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.14);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.95rem;
+    letter-spacing: -0.02em;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.stampd-brand-title {
+    font-size: 1.05rem;
+}
+
+.stampd-brand-sub {
+    font-size: 0.78rem;
+    color: var(--stampd-brand-sub);
+    margin-left: 0.25rem;
+}
+
+.stampd-nav-spacer { flex: 1; }
+
+.stampd-topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.stampd-theme-toggle {
+    appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--stampd-topbar-fg);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 160ms ease, border-color 160ms ease, transform 120ms ease;
+}
+
+.stampd-theme-toggle:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.55);
+    transform: rotate(15deg);
+}
+
+.stampd-main {
+    flex: 1;
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 1440px;
+    margin: 0 auto;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.stampd-footer {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.7rem 1.5rem;
+    font-size: 0.78rem;
+    background: var(--stampd-footer-bg);
+    color: var(--stampd-footer-fg);
+    border-top: 1px solid var(--stampd-border);
+}
+
+/* ============================================================
+   Page primitives
+   ============================================================ */
+.stampd-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    animation: stampd-fade 240ms ease-out;
+    min-width: 0;
+}
+
+.stampd-page-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.stampd-page-subtitle {
+    margin: 0.15rem 0 0;
+    font-size: 0.92rem;
+    color: var(--stampd-muted);
+}
+
+/* Hero card --------------------------------------------------- */
+.stampd-hero {
+    position: relative;
+    padding: 1.75rem 1.75rem 1.5rem;
+    border-radius: 14px;
+    color: #fff;
+    overflow: hidden;
+    background: linear-gradient(135deg, #0b3c6e 0%, #1a5698 45%, #2b7fce 100%);
+    box-shadow: var(--stampd-shadow-lg);
+    animation: stampd-fade-up 320ms ease-out;
+}
+.stampd-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(600px 260px at -10% -20%, rgba(255,255,255,0.20), transparent 60%),
+        radial-gradient(500px 200px at 110% 120%, rgba(255,255,255,0.10), transparent 60%);
+    pointer-events: none;
+}
+.stampd-hero-title {
+    margin: 0;
+    font-size: 1.65rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+.stampd-hero-sub {
+    margin: .35rem 0 0;
+    font-size: .95rem;
+    opacity: 0.92;
+    max-width: 70ch;
+    line-height: 1.5;
+}
+.stampd-hero-meta {
+    margin-top: 1rem;
+    display: flex;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    font-size: 0.82rem;
+    opacity: 0.85;
+}
+.stampd-hero-meta strong {
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.7rem;
+    font-weight: 700;
+    opacity: 0.7;
+    margin-bottom: 0.1rem;
+}
+
+[data-theme="dark"] .stampd-hero {
+    background: linear-gradient(135deg, #020617 0%, #0b3c6e 50%, #1a5698 100%);
+}
+
+/* Cards ------------------------------------------------------- */
+.stampd-card {
+    background: var(--stampd-surface);
+    border: 1px solid var(--stampd-border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    box-shadow: var(--stampd-shadow-md);
+    animation: stampd-fade-up 260ms ease-out;
+}
+
+.stampd-card--inset {
+    background: var(--stampd-surface-alt);
+}
+
+.stampd-card-title {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+}
+
+.stampd-card-section {
+    border-top: 1px solid var(--stampd-border);
+    margin-top: 1rem;
+    padding-top: 1rem;
+}
+
+/* KPI / fact tiles ------------------------------------------- */
+.stampd-kpi {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 1rem 1.2rem 1.1rem;
+    border-radius: 10px;
+    background: var(--stampd-surface);
+    border: 1px solid var(--stampd-border);
+    color: var(--stampd-fg);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+}
+.stampd-kpi::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--stampd-accent);
+}
+.stampd-kpi-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    color: var(--stampd-muted);
+}
+.stampd-kpi-value {
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.25;
+    word-break: break-all;
+}
+.stampd-kpi-value--lg {
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+
+/* Chips / pills ---------------------------------------------- */
+.stampd-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    border: 1px solid var(--stampd-border);
+    background: var(--stampd-surface);
+    color: var(--stampd-fg);
+}
+
+.stampd-chip--accent {
+    background: linear-gradient(135deg, #0b3c6e 0%, #1a5698 100%);
+    border-color: #0b3c6e;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(11, 60, 110, 0.25);
+}
+
+.stampd-chip--success { color: var(--stampd-success); border-color: var(--stampd-success); }
+.stampd-chip--warning { color: var(--stampd-warning); border-color: var(--stampd-warning); }
+.stampd-chip--danger  { color: var(--stampd-danger);  border-color: var(--stampd-danger); }
+
+/* Code ------------------------------------------------------- */
+code.stampd-code {
+    font-family: 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+    font-size: 0.82rem;
+    background: var(--stampd-surface-alt);
+    border: 1px solid var(--stampd-border);
+    border-radius: 6px;
+    padding: 0.18rem 0.5rem;
+    color: var(--stampd-fg);
+    word-break: break-all;
+    display: inline-block;
+}
+
+/* Buttons ---------------------------------------------------- */
+.stampd-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.55rem 1.1rem;
+    border-radius: 8px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 160ms ease, border-color 160ms ease, transform 100ms ease;
+    text-decoration: none;
+}
+
+.stampd-btn--primary {
+    background: linear-gradient(135deg, #0b3c6e 0%, #1a5698 100%);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(11, 60, 110, 0.3);
+}
+.stampd-btn--primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #0b3c6e 0%, #2b7fce 100%);
+    transform: translateY(-1px);
+}
+.stampd-btn--primary:disabled {
+    background: var(--stampd-border);
+    color: var(--stampd-muted);
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.stampd-btn--ghost {
+    background: transparent;
+    color: var(--stampd-fg);
+    border-color: var(--stampd-border);
+}
+.stampd-btn--ghost:hover {
+    background: var(--stampd-surface-alt);
+    border-color: var(--stampd-accent);
+}
+
+/* ============================================================
+   Signer page layout
+   ============================================================ */
+.signer-shell {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 1.25rem;
+    align-items: flex-start;
+}
+
+.signer-canvas-wrapper {
+    background: var(--stampd-surface);
+    border: 1px solid var(--stampd-border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: var(--stampd-shadow-md);
+    position: relative;
+    overflow: auto;
+    max-height: calc(100vh - 240px);
+    animation: stampd-fade-up 280ms ease-out;
+}
+
+.signer-canvas-wrapper canvas {
+    display: block;
+    margin: 0 auto;
+    background: #fff;
+    box-shadow: var(--stampd-shadow-sm);
+}
+
+.signer-panel {
+    background: var(--stampd-surface);
+    border: 1px solid var(--stampd-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: var(--stampd-shadow-md);
+    position: sticky;
+    top: 76px;
+    animation: stampd-fade-up 320ms ease-out;
+}
+
+.signer-panel-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.signer-panel-section + .signer-panel-section {
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--stampd-border);
+}
+
+.signer-panel-section h3 {
+    margin: 0;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    color: var(--stampd-muted);
+}
+
+.signer-recipient-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.signer-recipient-email {
+    font-size: 0.88rem;
+    color: var(--stampd-muted);
+}
+
+.signer-field-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+}
+
+.signer-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.signer-field-label {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--stampd-fg);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.signer-field-required {
+    color: var(--stampd-danger);
+    font-weight: 700;
+}
+
+.signer-signature-pad {
+    border: 1px solid var(--stampd-border);
+    border-radius: 8px;
+    cursor: crosshair;
+    background: var(--stampd-surface);
+    touch-action: none;
+    width: 100%;
+    height: 140px;
+}
+
+.signer-signature-actions {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.4rem;
+}
+
+.signer-submit {
+    width: 100%;
+    padding: 0.75rem 1.25rem;
+    font-size: 1rem;
+}
+
+.signer-error {
+    background: linear-gradient(135deg, rgba(198, 40, 40, 0.12) 0%, rgba(198, 40, 40, 0.05) 100%);
+    border: 1px solid rgba(198, 40, 40, 0.35);
+    color: #8b1515;
+    padding: 0.7rem 0.9rem;
+    border-radius: 8px;
+    font-size: 0.88rem;
+}
+
+[data-theme="dark"] .signer-error {
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.22) 0%, rgba(244, 63, 94, 0.08) 100%);
+    border-color: rgba(244, 63, 94, 0.5);
+    color: #fecaca;
+}
+
+/* PDF page renders */
+.pdf-page {
+    position: relative;
+    background: #fff;
+    border: 1px solid var(--stampd-border);
+    border-radius: 6px;
+    box-shadow: var(--stampd-shadow-sm);
+    margin: 0 auto 16px;
+    font-family: system-ui, sans-serif;
+}
+.pdf-page-label {
+    padding: 10px 14px;
+    color: var(--stampd-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+}
+.pdf-field-overlay {
+    position: absolute;
+    border: 2px dashed var(--stampd-accent);
+    background: rgba(26, 86, 152, 0.08);
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--stampd-accent);
+    padding: 2px 6px;
+    box-sizing: border-box;
+    font-weight: 600;
+}
+
+/* ============================================================
+   Completion view
+   ============================================================ */
+.signed-summary {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.8rem;
+    max-width: 720px;
+}
+
+.signed-summary .stampd-kpi {
+    padding: 0.85rem 1.1rem 0.95rem;
+}
+
+/* Confirmation hero accent */
+.stampd-hero--success {
+    background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 45%, #43a047 100%);
+    box-shadow: 0 10px 30px rgba(27, 94, 32, 0.3);
+}
+
+/* ============================================================
+   Designer / templates table
+   ============================================================ */
+.stampd-template-table {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--stampd-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.stampd-template-row {
+    display: grid;
+    grid-template-columns: 2fr 100px 100px 1fr 80px;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid var(--stampd-border);
+    font-size: 0.9rem;
+}
+
+.stampd-template-row:last-child { border-bottom: 0; }
+
+.stampd-template-head {
+    background: var(--stampd-surface-alt);
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--stampd-muted);
+}
+
+.stampd-auth-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--stampd-border);
+    border-radius: 8px;
+    background: var(--stampd-surface);
+    color: var(--stampd-fg);
+    font-size: 0.92rem;
+    font-family: inherit;
+    transition: border-color 160ms ease;
+}
+
+.stampd-auth-input:focus {
+    outline: none;
+    border-color: var(--stampd-accent);
+}
+
+.designer-canvas-host {
+    background: var(--stampd-surface-alt);
+    border: 1px solid var(--stampd-border);
+    border-radius: 10px;
+    padding: 1rem;
+    max-height: 720px;
+    overflow: auto;
+    text-align: center;
+}
+
+.designer-page {
+    position: relative;
+    background: #fff;
+    box-shadow: var(--stampd-shadow-md);
+    border-radius: 6px;
+    margin: 0 auto 16px;
+    display: inline-block;
+    cursor: crosshair;
+}
+
+.designer-page canvas {
+    display: block;
+    border-radius: 6px;
+}
+
+.designer-overlay-layer {
+    pointer-events: none;
+}
+
+.designer-field {
+    border: 2px solid var(--stampd-accent);
+    background: rgba(26, 86, 152, 0.18);
+    color: var(--stampd-accent);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    box-shadow: 0 1px 3px rgba(11, 60, 110, 0.25);
+}
+
+[data-theme="dark"] .designer-field {
+    background: rgba(147, 197, 253, 0.2);
+    color: var(--stampd-accent-light);
+    border-color: var(--stampd-accent-light);
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 960px) {
+    .signer-shell {
+        grid-template-columns: 1fr;
+    }
+    .signer-panel {
+        position: static;
+    }
+    .stampd-topbar-inner {
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 600px) {
+    .stampd-main {
+        padding: 1rem;
+    }
+    .stampd-hero {
+        padding: 1.25rem;
+    }
+    .stampd-hero-title {
+        font-size: 1.3rem;
+    }
+}

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>Stampd.UI</RootNamespace>
+    <UserSecretsId>stampd-ui-dev</UserSecretsId>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!--
+      Blazor Web App with mixed Static SSR + Interactive Server. The signer flow lives on
+      a page tagged InteractiveServer because it needs JS interop (PDF.js, signature canvas)
+      and form submission with state. The rest of the shell is Static SSR.
+
+      CA1848/CA1873 — logging analyzer rules irrelevant for UI hot paths.
+      CA1812 — Blazor component classes are instantiated by the framework, not directly.
+    -->
+    <NoWarn>$(NoWarn);CA1848;CA1873;CA1812</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Versions floated to the latest stable available against .NET 10 at the time of
+      writing. If `dotnet restore` complains a version doesn't exist yet, run
+      `dotnet add package Microsoft.FluentUI.AspNetCore.Components` to pick the actual
+      latest the feed has.
+    -->
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.12.1" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.12.1" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

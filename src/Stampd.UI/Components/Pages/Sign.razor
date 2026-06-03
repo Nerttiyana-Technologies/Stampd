@@ -1,0 +1,276 @@
+@page "/sign/{AccessToken}"
+@rendermode InteractiveServer
+@inject StampdApiClient Api
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Sign — Stampd</PageTitle>
+
+@if (_loading)
+{
+    <div class="stampd-card" style="display:flex; align-items:center; gap:12px;">
+        <FluentProgressRing />
+        <span>Loading your document…</span>
+    </div>
+}
+else if (_view is null)
+{
+    <div class="stampd-page">
+        <section class="stampd-hero" style="background: linear-gradient(135deg, #6b1414 0%, #b3261e 100%);">
+            <h1 class="stampd-hero-title">Signing link not found</h1>
+            <p class="stampd-hero-sub">
+                This link is invalid, expired, or already used. Contact the sender to request a
+                new invitation.
+            </p>
+        </section>
+    </div>
+}
+else if (_submitted is not null)
+{
+    <div class="stampd-page">
+        <section class="stampd-hero stampd-hero--success">
+            <h1 class="stampd-hero-title">Signed successfully</h1>
+            <p class="stampd-hero-sub">
+                Thanks, @_view.RecipientName. Your signature on <strong>“@_view.Subject”</strong>
+                has been recorded and the document has been sealed.
+            </p>
+            <div class="stampd-hero-meta">
+                <div>
+                    <strong>Workflow status</strong>
+                    <span class="stampd-chip stampd-chip--accent" style="background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.35);">
+                        @_submitted.WorkflowStatus
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        @if (_submitted.SignedDocumentId is not null)
+        {
+            <section class="signed-summary">
+                <div class="stampd-kpi">
+                    <div class="stampd-kpi-label">Document id</div>
+                    <code class="stampd-code">@_submitted.SignedDocumentId</code>
+                </div>
+                <div class="stampd-kpi">
+                    <div class="stampd-kpi-label">SHA-256 hash</div>
+                    <code class="stampd-code">@_submitted.SignedDocumentHashSha256</code>
+                </div>
+                <div class="stampd-kpi">
+                    <div class="stampd-kpi-label">What happens next</div>
+                    <div class="stampd-kpi-value">
+                        The sender receives a completion notification. You can close this window safely.
+                    </div>
+                </div>
+            </section>
+        }
+    </div>
+}
+else
+{
+    <div class="stampd-page">
+        <section class="stampd-hero">
+            <h1 class="stampd-hero-title">@_view.Subject</h1>
+            @if (!string.IsNullOrWhiteSpace(_view.Message))
+            {
+                <p class="stampd-hero-sub">@_view.Message</p>
+            }
+            <div class="stampd-hero-meta">
+                <div>
+                    <strong>Signing as</strong>
+                    @_view.RecipientName · @_view.RecipientEmail
+                </div>
+                <div>
+                    <strong>Fields</strong>
+                    @_view.Fields.Count required
+                </div>
+            </div>
+        </section>
+
+        <div class="signer-shell">
+            <div class="signer-canvas-wrapper">
+                <div id="pdf-host" @ref="_pdfHostElement" style="position:relative;">
+                    @* PDF.js renders <canvas> elements inside this host element. Field
+                       overlays are positioned absolutely on top with percentages — same
+                       coordinate system as the backend, so they line up. *@
+                </div>
+            </div>
+
+            <aside class="signer-panel">
+                <div class="signer-panel-section">
+                    <h3>Signing as</h3>
+                    <div class="signer-recipient-name">@_view.RecipientName</div>
+                    <div class="signer-recipient-email">@_view.RecipientEmail</div>
+                </div>
+
+                <div class="signer-panel-section">
+                    <h3>Fields to complete</h3>
+                    <div class="signer-field-list">
+                        @for (var i = 0; i < _view.Fields.Count; i++)
+                        {
+                            var idx = i;
+                            var field = _view.Fields[idx];
+                            <SignatureFieldEditor Field="field"
+                                                  CurrentValue="@(_values.TryGetValue(field.Index, out var v) ? v : null)"
+                                                  OnValueChanged="@(value => SetValue(field.Index, value))" />
+                        }
+                    </div>
+                </div>
+
+                <div class="signer-panel-section">
+                    <button class="stampd-btn stampd-btn--primary signer-submit"
+                            type="button"
+                            disabled="@(!CanSubmit() || _submitting)"
+                            @onclick="SubmitAsync">
+                        @if (_submitting)
+                        {
+                            <text>Submitting…</text>
+                        }
+                        else
+                        {
+                            <text>Sign and complete</text>
+                        }
+                    </button>
+
+                    @if (_submitError is not null)
+                    {
+                        <div class="signer-error" style="margin-top: 12px;">@_submitError</div>
+                    }
+                </div>
+            </aside>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string AccessToken { get; set; } = string.Empty;
+
+    private RecipientSigningView? _view;
+    private RecipientSubmitResponse? _submitted;
+    private readonly Dictionary<int, ApiFieldValue> _values = new();
+    private bool _loading = true;
+    private bool _submitting;
+    private string? _submitError;
+    private ElementReference _pdfHostElement;
+    private IJSObjectReference? _pdfModule;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _view = await Api.GetSigningViewAsync(AccessToken, CancellationToken.None);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private bool _canvasRendered;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Render the PDF once the view has loaded AND the DOM has the pdf-host. We CAN'T
+        // gate on firstRender — it's true during the initial "Loading…" render when _view
+        // is still null and the host element doesn't exist. Use our own sentinel.
+        if (_view is not null && _submitted is null && !_canvasRendered)
+        {
+            _canvasRendered = true;
+            _pdfModule = await JS.InvokeAsync<IJSObjectReference>(
+                "import", "/js/pdf-viewer.js");
+
+            var fieldArgs = _view.Fields.Select(f => new
+            {
+                page = f.PageNumber,
+                x = f.Bounds.X,
+                y = f.Bounds.Y,
+                w = f.Bounds.Width,
+                h = f.Bounds.Height,
+                label = f.Label ?? f.Kind,
+            }).ToArray();
+
+            // Try to fetch the actual PDF; fall back to placeholder if the API doesn't
+            // expose it (older deployments) or the recipient is in a state that blocks
+            // raw access.
+            byte[]? pdfBytes = null;
+            try
+            {
+                pdfBytes = await Api.GetSourceDocumentAsync(AccessToken, CancellationToken.None);
+            }
+            catch
+            {
+                pdfBytes = null;
+            }
+
+            if (pdfBytes is { Length: > 0 })
+            {
+                var b64 = Convert.ToBase64String(pdfBytes);
+                await _pdfModule.InvokeVoidAsync("renderPdf", _pdfHostElement, b64, fieldArgs);
+            }
+            else
+            {
+                await _pdfModule.InvokeVoidAsync("renderPlaceholder", _pdfHostElement, fieldArgs);
+            }
+        }
+    }
+
+    private void SetValue(int index, ApiFieldValue? value)
+    {
+        if (value is null)
+        {
+            _values.Remove(index);
+        }
+        else
+        {
+            _values[index] = value;
+        }
+        _submitError = null;
+        StateHasChanged();
+    }
+
+    private bool CanSubmit()
+    {
+        if (_view is null) return false;
+        foreach (var field in _view.Fields.Where(f => f.IsRequired))
+        {
+            if (!_values.TryGetValue(field.Index, out var v) || IsEmpty(v))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool IsEmpty(ApiFieldValue v)
+        => string.IsNullOrWhiteSpace(v.Text) && string.IsNullOrEmpty(v.ImageBase64);
+
+    private async Task SubmitAsync()
+    {
+        _submitting = true;
+        _submitError = null;
+        try
+        {
+            _submitted = await Api.SubmitAsync(AccessToken, _values, CancellationToken.None);
+            if (_submitted is null)
+            {
+                _submitError = "Submit failed. The signing link may have expired — please refresh and try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _submitError = ex.Message;
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_pdfModule is not null)
+        {
+            try { await _pdfModule.DisposeAsync(); } catch { /* ignore */ }
+        }
+    }
+}

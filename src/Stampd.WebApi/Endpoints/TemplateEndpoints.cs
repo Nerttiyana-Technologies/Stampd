@@ -21,6 +21,10 @@ internal static class TemplateEndpoints
             .WithName("CreateTemplate")
             .WithSummary("Uploads a PDF template with field layout and named recipient roles.");
 
+        group.MapGet("/", ListAsync)
+            .WithName("ListTemplates")
+            .WithSummary("Returns a paged list of templates in the current tenant, newest first.");
+
         group.MapGet("/{id:guid}", GetAsync)
             .WithName("GetTemplate")
             .WithSummary("Retrieves a template's metadata, roles, and field layout.");
@@ -124,6 +128,31 @@ internal static class TemplateEndpoints
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
 
         return Results.Created($"/api/templates/{template.Id}", ToResponse(template));
+    }
+
+    private static async Task<IResult> ListAsync(
+        [FromServices] StampdDbContext db,
+        CancellationToken ct)
+    {
+        // SQLite cannot translate ORDER BY on DateTimeOffset columns (text-sort is
+        // ambiguous across offsets). Materialize the projection, then sort client-side.
+        // Template counts are tenant-bounded so the result set is tiny.
+        var items = await db.DocumentTemplates
+            .Where(t => !t.IsArchived)
+            .Select(t => new
+            {
+                id = t.Id,
+                name = t.Name,
+                description = t.Description,
+                createdAtUtc = t.CreatedAtUtc,
+                updatedAtUtc = t.UpdatedAtUtc,
+                roleCount = t.Roles.Count,
+                fieldCount = t.Fields.Count,
+            })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return Results.Ok(items.OrderByDescending(t => t.createdAtUtc));
     }
 
     private static async Task<IResult> GetAsync(
