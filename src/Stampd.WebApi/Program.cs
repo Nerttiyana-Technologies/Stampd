@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 using Scalar.AspNetCore;
@@ -36,6 +37,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // ---- Observability: Serilog FIRST so config loading is captured ----
 builder.ConfigureSerilog();
+
+// OpenTelemetry traces + metrics
+builder.Services.AddStampdOpenTelemetry(builder.Configuration);
 
 // ---- Configuration ----
 var certPath = builder.Configuration["Stampd:SigningCertificate:Pkcs12Path"]
@@ -123,18 +127,30 @@ builder.Services.AddHealthChecks()
         tags: ["ready"]);
 
 // ---- AuthN/AuthZ ----
-var jwtOptions = new JwtOptions();
-builder.Configuration.GetSection("Stampd:Auth:Jwt").Bind(jwtOptions);
+//
+// IMPORTANT: bind JwtOptions via the DI options pattern (NOT by reading
+// builder.Configuration["..."] eagerly here). WebApplicationFactory adds its in-memory
+// config overrides via ConfigureAppConfiguration which runs DURING builder.Build() —
+// later than the top-level statements in Program.cs. If we read the JWT issuer/audience
+// here, integration tests would get the appsettings.json defaults instead of their
+// overrides, and every JWT would fail validation with 401.
+//
+// The fix: register JwtBearerOptions configuration as a DI callback that runs at
+// resolve-time via IOptionsMonitor<JwtOptions>, so it sees the final, fully-merged config.
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Stampd:Auth:Jwt"));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+    .AddJwtBearer();
+
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IOptionsMonitor<JwtOptions>>((bearerOptions, jwtMonitor) =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
+        var jwt = jwtMonitor.CurrentValue;
+        bearerOptions.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidIssuer = jwtOptions.Issuer,
-            ValidAudience = jwtOptions.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
+            ValidIssuer = jwt.Issuer,
+            ValidAudience = jwt.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
@@ -195,7 +211,14 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
+// HTTPS redirection in production is typically handled at the load balancer / ingress.
+// In-process redirection in the Testing environment causes a 307 that the test HttpClient
+// follows, stripping the Authorization header in the process — every protected-endpoint
+// test then fails with 401. Skip the middleware when running under WebApplicationFactory.
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();

@@ -1,0 +1,34 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/.idea/
+**/*.user
+**/*.suo
+**/.git/
+**/.gitignore
+**/.dockerignore
+**/Dockerfile
+**/docker-compose*.yml
+
+# Test artifacts
+**/TestResults/
+**/coverage*/
+
+# Personal docs (gitignored locally — keep out of build context too)
+internal/
+notes/
+private/
+PRD.md
+PRD-*.md
+ROADMAP-internal.md
+
+# Build outputs
+publish/
+out/
+artifacts/
+.artifacts/
+
+# OS junk
+.DS_Store
+Thumbs.db
