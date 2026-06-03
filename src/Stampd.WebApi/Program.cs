@@ -13,6 +13,7 @@ using Scalar.AspNetCore;
 using Serilog;
 
 using Stampd.Core;
+using Stampd.Core.Revocation;
 using Stampd.Core.Sealing;
 using Stampd.Core.Tenancy;
 using Stampd.Crypto.LocalCertificate;
@@ -21,8 +22,10 @@ using Stampd.Engine;
 using Stampd.Engine.Rendering;
 using Stampd.Infrastructure;
 using Stampd.Infrastructure.Sqlite;
+using Stampd.Revocation.Http;
 using Stampd.Storage.FileSystem;
 using Stampd.Timestamp.FreeTsa;
+using Stampd.Timestamp.Rfc3161;
 using Stampd.WebApi.Auth;
 using Stampd.WebApi.Endpoints;
 using Stampd.WebApi.Observability;
@@ -96,14 +99,61 @@ else
 
 if (enableTsa)
 {
-    builder.Services.AddFreeTsaTimestampAuthority(tsaEndpoint is null ? null : new Uri(tsaEndpoint));
+    // TSA provider selection:
+    //   - "FreeTSA" (default) → free public TSA, dev / demo / low-volume.
+    //   - "Rfc3161"           → generic provider, configurable URL + optional basic auth +
+    //                           optional mTLS client cert. Use for DigiCert / GlobalSign /
+    //                           Sectigo / internal Microsoft AD CS / EJBCA TSAs.
+    var tsaProvider = builder.Configuration["Stampd:Tsa:Provider"] ?? "FreeTSA";
+    if (string.Equals(tsaProvider, "Rfc3161", StringComparison.OrdinalIgnoreCase))
+    {
+        builder.Services.AddRfc3161TimestampAuthority(options =>
+        {
+            options.Name = builder.Configuration["Stampd:Tsa:Name"] ?? "RFC3161";
+            options.Endpoint = new Uri(builder.Configuration["Stampd:Tsa:Endpoint"]
+                ?? throw new InvalidOperationException(
+                    "Stampd:Tsa:Endpoint is required when Stampd:Tsa:Provider = 'Rfc3161'."));
+            options.BasicAuthUsername = builder.Configuration["Stampd:Tsa:BasicAuthUsername"];
+            options.BasicAuthPassword = builder.Configuration["Stampd:Tsa:BasicAuthPassword"];
+            options.ClientCertificatePkcs12Path = builder.Configuration["Stampd:Tsa:ClientCertificatePkcs12Path"];
+            options.ClientCertificatePassword = builder.Configuration["Stampd:Tsa:ClientCertificatePassword"];
+            options.RequestedPolicyOid = builder.Configuration["Stampd:Tsa:RequestedPolicyOid"];
+            options.RequestTsaCertificate = builder.Configuration.GetValue(
+                "Stampd:Tsa:RequestTsaCertificate", defaultValue: true);
+            options.IncludeNonce = builder.Configuration.GetValue(
+                "Stampd:Tsa:IncludeNonce", defaultValue: true);
+        });
+    }
+    else
+    {
+        builder.Services.AddFreeTsaTimestampAuthority(tsaEndpoint is null ? null : new Uri(tsaEndpoint));
+    }
 }
+
+// Revocation providers for PAdES B-LT. When enabled, the engine pre-fetches OCSP / CRL
+// material for each cert in the signer chain and embeds it in a /DSS catalog entry.
+// Adopters who don't need B-LT can leave this disabled — engine output stays at B-T.
+var enableRevocation = builder.Configuration.GetValue("Stampd:Revocation:Enabled", defaultValue: false);
+if (enableRevocation)
+{
+    builder.Services.AddHttpRevocationProviders();
+}
+
+// Process-wide PAdES level. Endpoints read this via PadesDefaults so callers don't have to
+// pass it in every request body. Adopters who want B-LT set Stampd:Pades:TargetLevel="BLT"
+// and ensure Stampd:Revocation:Enabled=true.
+var padesLevel = Enum.TryParse<Stampd.Core.Entities.PAdESLevel>(
+    builder.Configuration["Stampd:Pades:TargetLevel"], ignoreCase: true, out var parsedLevel)
+    ? parsedLevel
+    : Stampd.Core.Entities.PAdESLevel.BT;
+builder.Services.AddSingleton(new Stampd.WebApi.Services.PadesDefaults(padesLevel));
 
 builder.Services.AddSingleton<IStampdEngine>(sp =>
 {
     var sealing = sp.GetRequiredService<ICryptographicSealingProvider>();
     var tsa = sp.GetService<ITimestampAuthorityProvider>();
-    return new PdfSharpStampdEngine(sealing, tsa);
+    var revocation = sp.GetService<IRevocationProvider>();
+    return new PdfSharpStampdEngine(sealing, tsa, revocation);
 });
 
 builder.Services.AddScoped<SigningWorkflowService>();

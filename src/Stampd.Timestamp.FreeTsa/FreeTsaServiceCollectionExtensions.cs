@@ -1,20 +1,18 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
-using Stampd.Core.Sealing;
+using Stampd.Timestamp.Rfc3161;
 
 namespace Stampd.Timestamp.FreeTsa;
 
 /// <summary>
-/// DI registration helpers for <see cref="FreeTsaTimestampAuthorityProvider"/>.
+/// DI registration helpers for the FreeTSA preset.
 /// </summary>
 public static class FreeTsaServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers a <see cref="FreeTsaTimestampAuthorityProvider"/> as the application's
-    /// <see cref="ITimestampAuthorityProvider"/>, using a named <see cref="HttpClient"/>
-    /// via <c>IHttpClientFactory</c> so connection pooling and Polly policies are
-    /// applied consistently.
+    /// Registers an <see cref="Rfc3161TimestampAuthorityProvider"/> preconfigured for
+    /// FreeTSA. Equivalent to calling <c>AddRfc3161TimestampAuthority</c> with FreeTSA's
+    /// endpoint and a "FreeTSA" provider name.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="endpoint">
@@ -27,15 +25,12 @@ public static class FreeTsaServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddHttpClient(nameof(FreeTsaTimestampAuthorityProvider));
-
-        services.TryAddSingleton<ITimestampAuthorityProvider>(sp =>
+        return services.AddRfc3161TimestampAuthority(options =>
         {
-            var factory = sp.GetRequiredService<IHttpClientFactory>();
-            var client = factory.CreateClient(nameof(FreeTsaTimestampAuthorityProvider));
-            return new FreeTsaTimestampAuthorityProvider(client, endpoint);
+            options.Name = "FreeTSA";
+            options.Endpoint = endpoint ?? FreeTsaTimestampAuthorityProvider.DefaultEndpoint;
+            options.RequestTsaCertificate = true;
+            options.IncludeNonce = true;
         });
-
-        return services;
     }
 }

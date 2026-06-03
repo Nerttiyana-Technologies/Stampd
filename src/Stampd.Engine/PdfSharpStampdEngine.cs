@@ -8,7 +8,10 @@ using PdfSharp.Pdf.IO;
 using PdfSharp.Pdf.Signatures;
 
 using Stampd.Core;
+using Stampd.Core.Entities;
+using Stampd.Core.Revocation;
 using Stampd.Core.Sealing;
+using Stampd.Engine.Pades;
 using Stampd.Engine.Sealing;
 
 namespace Stampd.Engine;
@@ -36,29 +39,49 @@ public sealed class PdfSharpStampdEngine : IStampdEngine
 {
     private readonly ICryptographicSealingProvider _sealingProvider;
     private readonly ITimestampAuthorityProvider? _timestampAuthority;
+    private readonly IRevocationProvider? _revocationProvider;
 
     public PdfSharpStampdEngine(
         ICryptographicSealingProvider sealingProvider,
-        ITimestampAuthorityProvider? timestampAuthority = null)
+        ITimestampAuthorityProvider? timestampAuthority = null,
+        IRevocationProvider? revocationProvider = null)
     {
         ArgumentNullException.ThrowIfNull(sealingProvider);
         _sealingProvider = sealingProvider;
         _timestampAuthority = timestampAuthority;
+        _revocationProvider = revocationProvider;
     }
 
     /// <inheritdoc />
-    public Task<SignedDocument> SignAsync(
+    public async Task<SignedDocument> SignAsync(
         SignatureRequest request,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var signed = SignCore(request, cancellationToken);
-        return Task.FromResult(signed);
+        // B-LT requires pre-fetching revocation info for the cert chain BEFORE we open the
+        // PDF for signing. Done here (async) instead of inside SignCore (sync).
+        PadesRevocationData? revocationData = null;
+        if (ShouldEmbedRevocationInfo(request.Sealing.TargetLevel) && _revocationProvider is not null)
+        {
+            var signingCert = await _sealingProvider
+                .GetSigningCertificateAsync(cancellationToken)
+                .ConfigureAwait(false);
+            var fetcher = new PadesRevocationFetcher(_revocationProvider);
+            revocationData = await fetcher.GatherAsync(signingCert, cancellationToken).ConfigureAwait(false);
+        }
+
+        return SignCore(request, revocationData, cancellationToken);
     }
 
-    private SignedDocument SignCore(SignatureRequest request, CancellationToken cancellationToken)
+    private static bool ShouldEmbedRevocationInfo(PAdESLevel target)
+        => target == PAdESLevel.BLT || target == PAdESLevel.BLTA;
+
+    private SignedDocument SignCore(
+        SignatureRequest request,
+        PadesRevocationData? revocationData,
+        CancellationToken cancellationToken)
     {
         // ---- Phase 1: stamp the visible content onto the PDF ----
         byte[] stampedPdf;
@@ -95,12 +118,24 @@ public sealed class PdfSharpStampdEngine : IStampdEngine
 
         // ---- Phase 2: apply the X.509 signature via the configured provider ----
         var hashAlgorithm = ParseHashAlgorithm(request.Sealing.DigestAlgorithm);
-        var cmsBuilder = new PadesCmsBuilder(_sealingProvider, hashAlgorithm, _timestampAuthority);
+        var effectiveTsa = request.Sealing.TargetLevel == PAdESLevel.BB
+            ? null
+            : _timestampAuthority;
+        var cmsBuilder = new PadesCmsBuilder(_sealingProvider, hashAlgorithm, effectiveTsa);
 
         byte[] signedPdf;
         using (var stampedStream = new MemoryStream(stampedPdf, writable: false))
         using (var signingDocument = PdfReader.Open(stampedStream, PdfDocumentOpenMode.Modify))
         {
+            // B-LT enrichment: write the DSS dictionary into the catalog *before* the
+            // signature handler runs. The DSS bytes get included in /ByteRange, so the
+            // signature covers them too — a stronger (though non-standard ETSI) profile.
+            // See PadesDssWriter remarks for the trade-off discussion.
+            if (revocationData is not null)
+            {
+                PadesDssWriter.Write(signingDocument, revocationData);
+            }
+
             var options = new DigitalSignatureOptions
             {
                 ContactInfo = request.Metadata?.ContactInfo ?? string.Empty,

@@ -12,10 +12,12 @@
     <ProjectReference Include="..\Stampd.Engine\Stampd.Engine.csproj" />
     <ProjectReference Include="..\Stampd.Crypto.LocalCertificate\Stampd.Crypto.LocalCertificate.csproj" />
     <ProjectReference Include="..\Stampd.Crypto.Vault\Stampd.Crypto.Vault.csproj" />
+    <ProjectReference Include="..\Stampd.Timestamp.Rfc3161\Stampd.Timestamp.Rfc3161.csproj" />
     <ProjectReference Include="..\Stampd.Timestamp.FreeTsa\Stampd.Timestamp.FreeTsa.csproj" />
     <ProjectReference Include="..\Stampd.Infrastructure\Stampd.Infrastructure.csproj" />
     <ProjectReference Include="..\Stampd.Infrastructure.Sqlite\Stampd.Infrastructure.Sqlite.csproj" />
     <ProjectReference Include="..\Stampd.Storage.FileSystem\Stampd.Storage.FileSystem.csproj" />
+    <ProjectReference Include="..\Stampd.Revocation.Http\Stampd.Revocation.Http.csproj" />
   </ItemGroup>
 
   <ItemGroup>

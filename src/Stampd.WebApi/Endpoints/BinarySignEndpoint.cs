@@ -42,6 +42,7 @@ internal static class BinarySignEndpoint
     private static async Task<IResult> HandleAsync(
         HttpRequest request,
         [FromServices] IStampdEngine engine,
+        [FromServices] Stampd.WebApi.Services.PadesDefaults padesDefaults,
         CancellationToken cancellationToken)
     {
         if (!request.HasFormContentType)
@@ -131,7 +132,7 @@ internal static class BinarySignEndpoint
             SourcePdf = sourcePdf,
             Fields = fields,
             FieldValues = fieldValues,
-            Sealing = new SealingOptions(),
+            Sealing = padesDefaults.BuildSealingOptions(),
             Metadata = body.Metadata is null ? null : new SignatureMetadata(
                 Reason: body.Metadata.Reason,
                 Location: body.Metadata.Location,

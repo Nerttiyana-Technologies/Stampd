@@ -1,3 +1,5 @@
+using Stampd.Core.Entities;
+
 namespace Stampd.Core;
 
 /// <summary>
@@ -19,4 +21,19 @@ public sealed record SealingOptions
     /// <c>ICryptographicSealingProvider</c> must advertise support for the chosen algorithm.
     /// </summary>
     public string DigestAlgorithm { get; init; } = "SHA-256";
+
+    /// <summary>
+    /// Target PAdES conformance level for this request. The engine treats this as the
+    /// *requested* level; the *achieved* level depends on the providers wired into the
+    /// engine:
+    /// <list type="bullet">
+    ///   <item><description><see cref="PAdESLevel.BB"/> — no TSA, no revocation embedding.</description></item>
+    ///   <item><description><see cref="PAdESLevel.BT"/> — requires a TSA; falls back to BB if none configured.</description></item>
+    ///   <item><description><see cref="PAdESLevel.BLT"/> — requires both a TSA and an
+    ///   <c>IRevocationProvider</c>; falls back to BT or BB as components are missing.</description></item>
+    ///   <item><description><see cref="PAdESLevel.BLTA"/> — not yet implemented; treated as BLT.</description></item>
+    /// </list>
+    /// Default is <see cref="PAdESLevel.BT"/>.
+    /// </summary>
+    public PAdESLevel TargetLevel { get; init; } = PAdESLevel.BT;
 }
