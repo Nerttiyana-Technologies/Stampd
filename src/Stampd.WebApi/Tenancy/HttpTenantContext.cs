@@ -28,6 +28,14 @@ public sealed class HttpTenantContext : ITenantContext
 
     private static Guid ResolveTenant(HttpContext? context, Guid fallback)
     {
+        // Background-worker override takes precedence: if a TenantScope is active on this
+        // async flow, use it. This lets BulkSendWorker (and tests) switch tenants without
+        // owning the DI registration.
+        if (TenantScope.Current is { } scoped)
+        {
+            return scoped;
+        }
+
         if (context is null)
         {
             // Background work outside a request — use the configured default.

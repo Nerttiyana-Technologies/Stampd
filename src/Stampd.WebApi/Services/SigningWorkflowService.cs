@@ -31,6 +31,7 @@ public sealed class SigningWorkflowService
     private readonly PadesDefaults _padesDefaults;
     private readonly IEmailSender? _emailSender;
     private readonly WorkflowEmailOptions? _emailOptions;
+    private readonly WebhookDispatcher? _webhookDispatcher;
     private readonly ILogger<SigningWorkflowService> _logger;
 
     public SigningWorkflowService(
@@ -40,6 +41,7 @@ public sealed class SigningWorkflowService
         PadesDefaults padesDefaults,
         IEmailSender? emailSender = null,
         WorkflowEmailOptions? emailOptions = null,
+        WebhookDispatcher? webhookDispatcher = null,
         ILogger<SigningWorkflowService>? logger = null)
     {
         _db = db;
@@ -48,6 +50,7 @@ public sealed class SigningWorkflowService
         _padesDefaults = padesDefaults;
         _emailSender = emailSender;
         _emailOptions = emailOptions;
+        _webhookDispatcher = webhookDispatcher;
         _logger = logger ?? NullLogger<SigningWorkflowService>.Instance;
     }
 
@@ -107,6 +110,22 @@ public sealed class SigningWorkflowService
         }
 
         _db.SigningRequests.Add(request);
+
+        // Emit a RecipientInvited webhook for each initial-routing recipient. The dispatcher
+        // queues outbox rows on the SAME DbContext as the workflow state change, so both
+        // commit atomically — no risk of a webhook firing for a state change that was rolled
+        // back.
+        if (_webhookDispatcher is not null)
+        {
+            foreach (var r in request.Recipients.Where(r => r.Status == RecipientStatus.Invited))
+            {
+                await _webhookDispatcher.EnqueueAsync(
+                    WebhookEventType.RecipientInvited,
+                    new { SigningRequestId = request.Id, RecipientId = r.Id, r.Email, r.Name },
+                    ct).ConfigureAwait(false);
+            }
+        }
+
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
 
         // Best-effort: send invitation emails to recipients we just promoted to Invited.
@@ -217,6 +236,15 @@ public sealed class SigningWorkflowService
         }
 
         AddAudit(recipient.SigningRequest!, AuditEventType.RecipientViewed, now, recipient);
+
+        if (_webhookDispatcher is not null)
+        {
+            await _webhookDispatcher.EnqueueAsync(
+                WebhookEventType.RecipientViewed,
+                new { SigningRequestId = recipient.SigningRequestId, RecipientId = recipient.Id },
+                ct).ConfigureAwait(false);
+        }
+
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
@@ -236,6 +264,10 @@ public sealed class SigningWorkflowService
 
         recipient.Status = RecipientStatus.Signed;
         recipient.SignedAtUtc = now;
+        // Persist this recipient's submission for later aggregation. Each recipient owns
+        // the fields whose template AssignedRoleId matches this recipient's RoleId; we
+        // honor that mapping at finalization rather than trusting the indexes blindly.
+        recipient.SubmittedFieldValuesJson = System.Text.Json.JsonSerializer.Serialize(fieldValues);
         AddAudit(request, AuditEventType.RecipientSigned, now, recipient);
 
         // Promote next-routing-order recipients from Pending → Invited.
@@ -282,17 +314,37 @@ public sealed class SigningWorkflowService
                     f.AssignedRoleId?.ToString() ?? "default"))
                 .ToArray();
 
-            var engineFieldValues = new Dictionary<int, ReadOnlyMemory<byte>>(fieldValues.Count);
-            foreach (var (idx, val) in fieldValues)
+            // Aggregate per-recipient submissions. For each template field we accept
+            // the value from the recipient whose RoleId matches the field's AssignedRoleId.
+            // If a field is unassigned (AssignedRoleId == null) we fall back to the
+            // current submitter's values, then to any recipient's, in routing order.
+            var engineFieldValues = new Dictionary<int, ReadOnlyMemory<byte>>(orderedFields.Count);
+            for (var fieldIndex = 0; fieldIndex < orderedFields.Count; fieldIndex++)
             {
-                if (idx < 0 || idx >= signatureFields.Length) continue;
+                var templateField = orderedFields[fieldIndex];
+                var source = ResolveFieldOwner(
+                    request,
+                    currentSubmitter: recipient,
+                    fieldValues,
+                    templateField.AssignedRoleId);
+
+                if (source is null)
+                {
+                    continue;
+                }
+
+                if (!source.TryGetValue(fieldIndex, out var val))
+                {
+                    continue;
+                }
+
                 if (val.ImageBase64 is { Length: > 0 } img)
                 {
-                    engineFieldValues[idx] = Convert.FromBase64String(img);
+                    engineFieldValues[fieldIndex] = Convert.FromBase64String(img);
                 }
                 else if (val.Text is { } text)
                 {
-                    engineFieldValues[idx] = System.Text.Encoding.UTF8.GetBytes(text);
+                    engineFieldValues[fieldIndex] = System.Text.Encoding.UTF8.GetBytes(text);
                 }
             }
 
@@ -343,9 +395,84 @@ public sealed class SigningWorkflowService
             request.Status = SigningRequestStatus.InProgress;
         }
 
+        // Emit lifecycle events. RecipientSigned always fires; SigningRequestCompleted
+        // fires only when the workflow finalizes.
+        if (_webhookDispatcher is not null)
+        {
+            await _webhookDispatcher.EnqueueAsync(
+                WebhookEventType.RecipientSigned,
+                new { SigningRequestId = request.Id, RecipientId = recipient.Id },
+                ct).ConfigureAwait(false);
+
+            if (allDone)
+            {
+                await _webhookDispatcher.EnqueueAsync(
+                    WebhookEventType.SigningRequestCompleted,
+                    new
+                    {
+                        SigningRequestId = request.Id,
+                        SignedDocumentId = signedDocumentId,
+                        DocumentHashSha256 = signedHash,
+                    },
+                    ct).ConfigureAwait(false);
+            }
+        }
+
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
 
         return (recipient.Status, request.Status, signedDocumentId, signedHash);
+    }
+
+    /// <summary>
+    /// Picks the field-value dictionary that "owns" a given template field for the
+    /// multi-recipient finalize step. Resolution order:
+    /// <list type="number">
+    ///   <item>The recipient whose RoleId equals <paramref name="assignedRoleId"/>.</item>
+    ///   <item>The current submitter (covers single-recipient and pre-filled fields).</item>
+    ///   <item>The earliest-routing recipient with any submitted values (fallback).</item>
+    /// </list>
+    /// Returns null when nobody has submitted anything for this field.
+    /// </summary>
+    private static IReadOnlyDictionary<int, ApiFieldValue>? ResolveFieldOwner(
+        SigningRequest request,
+        Recipient currentSubmitter,
+        IReadOnlyDictionary<int, ApiFieldValue> currentSubmitterValues,
+        Guid? assignedRoleId)
+    {
+        if (assignedRoleId is not null)
+        {
+            var matched = request.Recipients
+                .FirstOrDefault(r => r.RoleId == assignedRoleId);
+            if (matched is not null)
+            {
+                if (matched.Id == currentSubmitter.Id)
+                {
+                    return currentSubmitterValues;
+                }
+
+                if (matched.SubmittedFieldValuesJson is not null)
+                {
+                    return System.Text.Json.JsonSerializer
+                        .Deserialize<Dictionary<int, ApiFieldValue>>(matched.SubmittedFieldValuesJson);
+                }
+            }
+        }
+
+        // Pre-filled or unassigned: use the current submitter's values.
+        if (currentSubmitterValues.Count > 0)
+        {
+            return currentSubmitterValues;
+        }
+
+        // Last-resort: the earliest-routing recipient who has submitted anything.
+        var fallback = request.Recipients
+            .Where(r => r.SubmittedFieldValuesJson is not null)
+            .OrderBy(r => r.RoutingOrder)
+            .FirstOrDefault();
+        return fallback?.SubmittedFieldValuesJson is null
+            ? null
+            : System.Text.Json.JsonSerializer
+                .Deserialize<Dictionary<int, ApiFieldValue>>(fallback.SubmittedFieldValuesJson);
     }
 
     private static void AddAudit(

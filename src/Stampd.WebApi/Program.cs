@@ -250,6 +250,23 @@ builder.Services.AddSingleton<IStampdEngine>(sp =>
 });
 
 builder.Services.AddScoped<SigningWorkflowService>();
+builder.Services.AddScoped<WebhookDispatcher>();
+
+// Workflow email defaults — pulled from config so adopters can flip the dispatch path
+// on by setting Stampd:Workflow:Email:SigningUrlTemplate without changing code.
+builder.Services.AddSingleton(new WorkflowEmailOptions
+{
+    FromAddress = builder.Configuration["Stampd:Workflow:Email:FromAddress"] ?? "noreply@stampd.local",
+    FromDisplayName = builder.Configuration["Stampd:Workflow:Email:FromDisplayName"] ?? "Stampd",
+    SigningUrlTemplate = builder.Configuration["Stampd:Workflow:Email:SigningUrlTemplate"],
+    ProductName = builder.Configuration["Stampd:Workflow:Email:ProductName"] ?? "Stampd",
+});
+
+// Background workers: bulk-send dispatcher and webhook delivery outbox drainer. Both
+// poll the DB; both gracefully cross-tenant via TenantScope.
+builder.Services.AddHostedService<BulkSendWorker>();
+builder.Services.AddHostedService<WebhookDeliveryWorker>();
+builder.Services.AddHttpClient(nameof(WebhookDeliveryWorker));
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -404,6 +421,8 @@ var managementGroup = app.MapGroup("").RequireAuthorization();
 managementGroup.MapTemplates();
 managementGroup.MapSigningRequests();
 managementGroup.MapSignedDocuments();
+managementGroup.MapBulkSend();
+managementGroup.MapWebhooks();
 
 try
 {
