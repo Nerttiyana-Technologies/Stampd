@@ -20,5 +20,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Stampd.Engine.Tests/Stampd.Engine.Tests.csproj" />
+    <Project Path="tests/Stampd.WebApi.Tests/Stampd.WebApi.Tests.csproj" />
   </Folder>
 </Solution>

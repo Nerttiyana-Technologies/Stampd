@@ -1,0 +1,87 @@
+# docker-compose for local Stampd stack:
+#   - Stampd.WebApi (the signing service)
+#   - OpenBao in dev mode (HSM-backed signing path)
+#
+# Usage:
+#   docker compose up --build
+#
+# Then:
+#   curl -ks http://localhost:8080/health/ready
+#   curl -ks -X POST http://localhost:8080/api/auth/dev-token \
+#     -H 'Content-Type: application/json' \
+#     -d '{"subject":"alice@example.com"}'
+#
+# Defaults to LocalCertificate sealing. Switch to Vault sealing by setting
+# Stampd__Sealing__Provider=Vault and the related env vars; the openbao service is
+# already wired up at http://openbao:8200 with a known root token.
+
+services:
+  webapi:
+    build:
+      context: .
+      dockerfile: src/Stampd.WebApi/Dockerfile
+    image: stampd/webapi:dev
+    container_name: stampd-webapi
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+
+      Stampd__Sealing__Provider: Local
+      # Reuse the host's persistent cert at ~/.stampd/spike-signer.pfx — the host volume
+      # mount below makes it visible inside the container. Adobe trust setup from the host
+      # carries over automatically; you don't have to import a fresh cert for the docker stack.
+      Stampd__SigningCertificate__Pkcs12Path: /host-stampd/spike-signer.pfx
+      Stampd__SigningCertificate__Password: stampd-spike
+
+      Stampd__Tsa__Enabled: "true"
+
+      Stampd__Database__SqlitePath: /data/stampd.db
+      Stampd__Storage__FileSystemRoot: /data/documents
+      Stampd__Logging__Directory: /data/logs
+
+      Stampd__Tenancy__DefaultTenantId: 00000000-0000-0000-0000-000000000001
+
+      Stampd__Auth__Jwt__SigningKey: please-replace-this-32-plus-char-dev-secret-with-something-better
+      Stampd__Auth__Jwt__Issuer: stampd
+      Stampd__Auth__Jwt__Audience: stampd-api
+      Stampd__Auth__Jwt__EnableDevTokenEndpoint: "true"
+
+      # Uncomment to ship traces to a local Jaeger / Tempo / Datadog OTLP receiver:
+      # Stampd__Otel__OtlpEndpoint: http://otel-collector:4317
+    volumes:
+      - stampd-data:/data
+      # Mount the host's ~/.stampd as read-only so the container reuses the same signing
+      # cert (and its Adobe trust setup) as your host. Override STAMPD_HOST_DIR if your
+      # cert lives elsewhere.
+      - ${STAMPD_HOST_DIR:-~/.stampd}:/host-stampd:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/live || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  openbao:
+    image: openbao/openbao:latest
+    container_name: stampd-openbao
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: stampd-dev-root-token
+      BAO_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    command: ["server", "-dev"]
+    healthcheck:
+      test: ["CMD-SHELL", "bao status -address=http://localhost:8200 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  stampd-data:
+    name: stampd-data
