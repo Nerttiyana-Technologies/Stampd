@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Stampd.Crypto.AwsKms</PackageId>
+    <Description>AWS KMS-backed ICryptographicSealingProvider. The signing key stays in AWS KMS; this provider submits digests for remote signing via the KMS Sign API. Pairs with AWS-issued AATL-trusted certificates or customer-supplied certs whose public key matches the KMS asymmetric key.</Description>
+    <RootNamespace>Stampd.Crypto.AwsKms</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.KeyManagementService" Version="4.0.12.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.8" />
+  </ItemGroup>
+
+</Project>

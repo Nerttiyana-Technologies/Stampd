@@ -5,6 +5,15 @@
     <UserSecretsId>stampd-webapi-dev</UserSecretsId>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!--
+      CA1848 / CA1873 — high-performance logging rules that demand LoggerMessage.Define
+      delegates. The WebApi's logging hot paths are infrequent enough (dispatch, audit
+      events, exception paths) that the message-construction cost is negligible. Adopting
+      LoggerMessage.Define everywhere would be a large mechanical change for no measurable
+      benefit; suppress project-wide and revisit if profiling ever shows logging on the
+      hot path.
+    -->
+    <NoWarn>$(NoWarn);CA1848;CA1873</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +28,9 @@
     <ProjectReference Include="..\Stampd.Infrastructure\Stampd.Infrastructure.csproj" />
     <ProjectReference Include="..\Stampd.Infrastructure.Sqlite\Stampd.Infrastructure.Sqlite.csproj" />
     <ProjectReference Include="..\Stampd.Storage.FileSystem\Stampd.Storage.FileSystem.csproj" />
+    <ProjectReference Include="..\Stampd.Storage.S3\Stampd.Storage.S3.csproj" />
+    <ProjectReference Include="..\Stampd.Storage.AzureBlob\Stampd.Storage.AzureBlob.csproj" />
+    <ProjectReference Include="..\Stampd.Storage.Gcs\Stampd.Storage.Gcs.csproj" />
     <ProjectReference Include="..\Stampd.Revocation.Http\Stampd.Revocation.Http.csproj" />
   </ItemGroup>
 

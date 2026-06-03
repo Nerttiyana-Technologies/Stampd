@@ -13,9 +13,14 @@
     <Project Path="src/Stampd.Timestamp.Rfc3161/Stampd.Timestamp.Rfc3161.csproj" />
     <Project Path="src/Stampd.Timestamp.FreeTsa/Stampd.Timestamp.FreeTsa.csproj" />
     <Project Path="src/Stampd.Storage.FileSystem/Stampd.Storage.FileSystem.csproj" />
+    <Project Path="src/Stampd.Storage.S3/Stampd.Storage.S3.csproj" />
+    <Project Path="src/Stampd.Storage.AzureBlob/Stampd.Storage.AzureBlob.csproj" />
+    <Project Path="src/Stampd.Storage.Gcs/Stampd.Storage.Gcs.csproj" />
     <Project Path="src/Stampd.Revocation.Http/Stampd.Revocation.Http.csproj" />
     <Project Path="src/Stampd.Email.Smtp/Stampd.Email.Smtp.csproj" />
     <Project Path="src/Stampd.Identity.EmailOtp/Stampd.Identity.EmailOtp.csproj" />
+    <Project Path="src/Stampd.Identity.SmsOtp/Stampd.Identity.SmsOtp.csproj" />
+    <Project Path="src/Stampd.Identity.Kba/Stampd.Identity.Kba.csproj" />
     <Project Path="src/Stampd.WebApi/Stampd.WebApi.csproj" />
   </Folder>
   <Folder Name="/samples/">

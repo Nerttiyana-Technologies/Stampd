@@ -1,51 +1,43 @@
 using System.Security.Cryptography;
 
 using Stampd.Core.Identity;
-using Stampd.Core.Notifications;
 
-namespace Stampd.Identity.EmailOtp;
+namespace Stampd.Identity.SmsOtp;
 
 /// <summary>
-/// Issues a 6-digit OTP code by email, validates the response against an in-memory store.
+/// Issues a 6-digit OTP code via SMS, validates the response against the configured
+/// <see cref="IOtpChallengeStore"/>. Mirrors the email-OTP provider in semantics — same
+/// store contract, same fixed-time comparison, same sentinel-envelope handling for
+/// persistent stores that hash codes at rest.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Skeleton scope:</b> the challenge store is in-memory and per-instance. Restart the
-/// process and unverified challenges are lost. Multi-node deployments need a shared store
-/// (Redis, SQL Server) — wire by swapping <see cref="IOtpChallengeStore"/>.
-/// </para>
-/// <para>
-/// <b>Production hardening to-dos</b> before this is ready for real users:
+/// Production hardening to-dos (shared with email-OTP):
 /// </para>
 /// <list type="bullet">
-///   <item>Persistent challenge store (DB) instead of ConcurrentDictionary.</item>
 ///   <item>Per-recipient rate limiting on InitiateAsync.</item>
 ///   <item>Throttling on VerifyAsync after N failed attempts.</item>
 ///   <item>HMAC the verification ID so it can't be guessed.</item>
-///   <item>Hash the OTP at rest (don't store the raw code).</item>
 /// </list>
 /// </remarks>
-public sealed class EmailOtpProvider : IIdentityVerificationProvider
+public sealed class SmsOtpProvider : IIdentityVerificationProvider
 {
-    private readonly IEmailSender _emailSender;
+    private readonly ISmsGateway _smsGateway;
     private readonly IOtpChallengeStore _store;
-    private readonly EmailOtpOptions _options;
+    private readonly SmsOtpOptions _options;
 
-    public EmailOtpProvider(
-        IEmailSender emailSender,
-        IOtpChallengeStore store,
-        EmailOtpOptions options)
+    public SmsOtpProvider(ISmsGateway smsGateway, IOtpChallengeStore store, SmsOtpOptions options)
     {
-        ArgumentNullException.ThrowIfNull(emailSender);
+        ArgumentNullException.ThrowIfNull(smsGateway);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
-        _emailSender = emailSender;
+        _smsGateway = smsGateway;
         _store = store;
         _options = options;
     }
 
     /// <inheritdoc />
-    public string Name => "EmailOtp";
+    public string Name => "SmsOtp";
 
     /// <inheritdoc />
     public async Task<IdentityVerificationChallenge> InitiateAsync(
@@ -53,28 +45,31 @@ public sealed class EmailOtpProvider : IIdentityVerificationProvider
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(subject);
+        if (string.IsNullOrWhiteSpace(subject.PhoneNumber))
+        {
+            throw new InvalidOperationException(
+                "SmsOtpProvider requires IdentityVerificationSubject.PhoneNumber to be non-empty.");
+        }
 
         var code = GenerateCode();
         var verificationId = Guid.NewGuid().ToString("N");
         var expiresAt = DateTimeOffset.UtcNow.Add(_options.ChallengeLifetime);
 
         await _store
-            .StoreAsync(new OtpChallenge(verificationId, Identifier: subject.Email, Code: code, ExpiresAtUtc: expiresAt), cancellationToken)
+            .StoreAsync(new OtpChallenge(verificationId, Identifier: subject.PhoneNumber, Code: code, ExpiresAtUtc: expiresAt), cancellationToken)
             .ConfigureAwait(false);
 
-        await _emailSender.SendAsync(new EmailMessage(
-            FromAddress: _options.FromAddress,
-            FromDisplayName: _options.FromDisplayName,
-            To: [new EmailAddress(subject.Email, subject.DisplayName)],
-            Subject: $"{_options.ProductName} verification code: {code}",
-            PlainTextBody: $"Your verification code is {code}. It expires in {_options.ChallengeLifetime.TotalMinutes:F0} minutes.",
-            HtmlBody: $"<p>Your verification code is <strong>{code}</strong>.</p><p>It expires in {_options.ChallengeLifetime.TotalMinutes:F0} minutes.</p>"),
-            cancellationToken).ConfigureAwait(false);
+        var message = $"{_options.ProductName} verification code: {code}. " +
+                      $"Expires in {_options.ChallengeLifetime.TotalMinutes:F0} minutes.";
+
+        await _smsGateway
+            .SendAsync(subject.PhoneNumber, message, cancellationToken)
+            .ConfigureAwait(false);
 
         return new IdentityVerificationChallenge(
             verificationId,
             expiresAt,
-            UserVisibleHint: $"We sent a 6-digit code to {MaskEmail(subject.Email)}.");
+            UserVisibleHint: $"We sent a 6-digit code to {MaskPhone(subject.PhoneNumber)}.");
     }
 
     /// <inheritdoc />
@@ -101,11 +96,6 @@ public sealed class EmailOtpProvider : IIdentityVerificationProvider
         bool matched;
         if (challenge.Code.StartsWith("$dbstore$", StringComparison.Ordinal))
         {
-            // Persistent store returned a salt:hash envelope — we never have access to the
-            // plaintext code. Compute SHA-256(response||salt) and compare against the stored
-            // hash. The envelope format and verification helper live in DbOtpChallengeStore;
-            // we reproduce the comparison inline here to avoid taking a hard reference from
-            // this OTP provider to the Infrastructure project.
             matched = VerifySentinelEnvelope(challenge.Code, response.Trim());
         }
         else
@@ -124,9 +114,20 @@ public sealed class EmailOtpProvider : IIdentityVerificationProvider
         return new IdentityVerificationResult(Succeeded: true);
     }
 
+    private static string GenerateCode()
+    {
+        var n = RandomNumberGenerator.GetInt32(0, 1_000_000);
+        return n.ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static string MaskPhone(string phone)
+    {
+        if (phone.Length <= 4) return "***";
+        return $"***{phone[^4..]}";
+    }
+
     private static bool VerifySentinelEnvelope(string envelopeCode, string response)
     {
-        // Envelope: "$dbstore${saltHex}:{hashHex}"
         const string sentinel = "$dbstore$";
         var payload = envelopeCode[sentinel.Length..];
         var colon = payload.IndexOf(':', StringComparison.Ordinal);
@@ -145,30 +146,10 @@ public sealed class EmailOtpProvider : IIdentityVerificationProvider
             System.Text.Encoding.UTF8.GetBytes(computed),
             System.Text.Encoding.UTF8.GetBytes(storedHash));
     }
-
-    private static string GenerateCode()
-    {
-        var n = RandomNumberGenerator.GetInt32(0, 1_000_000);
-        return n.ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
-    }
-
-    private static string MaskEmail(string email)
-    {
-        var at = email.IndexOf('@', StringComparison.Ordinal);
-        if (at <= 1) return "***";
-        return $"{email[0]}***{email[at..]}";
-    }
 }
 
-public sealed class EmailOtpOptions
+public sealed class SmsOtpOptions
 {
-    public string FromAddress { get; set; } = "noreply@stampd.local";
-    public string? FromDisplayName { get; set; } = "Stampd";
     public string ProductName { get; set; } = "Stampd";
     public TimeSpan ChallengeLifetime { get; set; } = TimeSpan.FromMinutes(10);
 }
-
-// OtpChallenge, IOtpChallengeStore, and InMemoryOtpChallengeStore live in
-// Stampd.Core.Identity since the SmsOtp provider needs them too. This file used to host
-// them; type-forward aliases below preserve the old namespace for any adopters who
-// referenced them directly. Prefer the Stampd.Core.Identity types in new code.
