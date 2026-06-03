@@ -21,6 +21,7 @@ internal static class SignEndpoint
     private static async Task<IResult> HandleAsync(
         [FromBody] SignRequestBody body,
         [FromServices] IStampdEngine engine,
+        [FromServices] Stampd.WebApi.Services.PadesDefaults padesDefaults,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(body);
@@ -87,7 +88,7 @@ internal static class SignEndpoint
             SourcePdf = sourcePdf,
             Fields = fields,
             FieldValues = fieldValues,
-            Sealing = new SealingOptions(),
+            Sealing = padesDefaults.BuildSealingOptions(),
             Metadata = body.Metadata is null ? null : new SignatureMetadata(
                 Reason: body.Metadata.Reason,
                 Location: body.Metadata.Location,

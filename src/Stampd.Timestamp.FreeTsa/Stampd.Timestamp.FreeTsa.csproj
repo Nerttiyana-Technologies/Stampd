@@ -2,16 +2,16 @@
 
   <PropertyGroup>
     <PackageId>Stampd.Timestamp.FreeTsa</PackageId>
-    <Description>FreeTSA (freetsa.org) RFC 3161 timestamp authority provider for Stampd. Suitable for development, demos, and self-hosted production where the free FreeTSA service is acceptable.</Description>
+    <Description>FreeTSA (freetsa.org) preset for Stampd's generic RFC 3161 timestamp authority provider. Suitable for development, demos, and self-hosted production where FreeTSA's terms of use are acceptable.</Description>
     <RootNamespace>Stampd.Timestamp.FreeTsa</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
+    <ProjectReference Include="..\Stampd.Timestamp.Rfc3161\Stampd.Timestamp.Rfc3161.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
   </ItemGroup>

@@ -148,6 +148,7 @@ internal static class TemplateEndpoints
         [FromServices] StampdDbContext db,
         [FromServices] IDocumentStorageProvider storage,
         [FromServices] IStampdEngine engine,
+        [FromServices] Stampd.WebApi.Services.PadesDefaults padesDefaults,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(body);
@@ -207,7 +208,7 @@ internal static class TemplateEndpoints
             SourcePdf = sourcePdf,
             Fields = signatureFields,
             FieldValues = fieldValues,
-            Sealing = new SealingOptions(),
+            Sealing = padesDefaults.BuildSealingOptions(),
             Metadata = body.Metadata is null ? null : new SignatureMetadata(
                 Reason: body.Metadata.Reason,
                 Location: body.Metadata.Location,

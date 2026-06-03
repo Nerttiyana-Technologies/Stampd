@@ -25,15 +25,18 @@ public sealed class SigningWorkflowService
     private readonly StampdDbContext _db;
     private readonly IDocumentStorageProvider _storage;
     private readonly IStampdEngine _engine;
+    private readonly PadesDefaults _padesDefaults;
 
     public SigningWorkflowService(
         StampdDbContext db,
         IDocumentStorageProvider storage,
-        IStampdEngine engine)
+        IStampdEngine engine,
+        PadesDefaults padesDefaults)
     {
         _db = db;
         _storage = storage;
         _engine = engine;
+        _padesDefaults = padesDefaults;
     }
 
     /// <summary>Creates a new SigningRequest from a template + recipient assignments, marks it Sent.</summary>
@@ -213,7 +216,7 @@ public sealed class SigningWorkflowService
                 SourcePdf = sourcePdf,
                 Fields = signatureFields,
                 FieldValues = engineFieldValues,
-                Sealing = new SealingOptions(),
+                Sealing = _padesDefaults.BuildSealingOptions(),
                 Metadata = new SignatureMetadata(
                     Reason: request.Subject,
                     Location: "Stampd workflow",
