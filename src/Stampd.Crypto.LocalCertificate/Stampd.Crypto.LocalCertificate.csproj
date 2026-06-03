@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Stampd.Crypto.LocalCertificate</PackageId>
+    <Description>Local X.509 certificate ICryptographicSealingProvider for Stampd. Suitable for self-hosted production where the signing certificate is stored on disk or in the OS certificate store.</Description>
+    <RootNamespace>Stampd.Crypto.LocalCertificate</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+
+    <!--
+      BouncyCastle is referenced here so the local signer produces signature bytes that
+      are byte-identical to what the engine's CMS pipeline expects. .NET's RSA.SignData
+      *should* be equivalent for SHA-256-with-PKCS#1-v1.5, but in practice Adobe's
+      verifier flagged the resulting CMS as invalid. Routing through BouncyCastle's
+      RsaDigestSigner restores parity with the proven-working spike output.
+    -->
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+  </ItemGroup>
+
+</Project>

@@ -427,3 +427,104 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# ---------------------------------------------------------------------------
+# macOS
+# ---------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network\ Trash\ Folder
+Temporary\ Items
+.apdisk
+
+# ---------------------------------------------------------------------------
+# JetBrains Rider / IntelliJ / WebStorm
+# ---------------------------------------------------------------------------
+.idea/
+.idea.*/
+*.iml
+*.ipr
+*.iws
+*.sln.iml
+out/
+.idea_modules/
+# Rider per-user settings inside .idea
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/usage.statistics.xml
+.idea/**/shelf
+.idea/**/contentModel.xml
+.idea/**/dataSources/
+.idea/**/dataSources.ids
+.idea/**/dataSources.local.xml
+.idea/**/sqlDataSources.xml
+.idea/**/dynamic.xml
+.idea/**/uiDesigner.xml
+.idea/**/dbnavigator.xml
+# Rider config dirs at home/repo level
+.Rider*/
+*.DotSettings
+*.DotSettings.user
+
+# ---------------------------------------------------------------------------
+# Personal / internal documents (not for publication)
+# ---------------------------------------------------------------------------
+PRD.md
+PRD-*.md
+ROADMAP-internal.md
+notes/
+private/
+internal/
+
+# ---------------------------------------------------------------------------
+# Presentations
+# ---------------------------------------------------------------------------
+*.pptx
+*.ppt
+*.key
+*.odp
+presentations/
+slides/
+decks/
+
+# ---------------------------------------------------------------------------
+# Marketing & design assets
+# ---------------------------------------------------------------------------
+marketing/
+brand/
+brand-assets/
+press-kit/
+design/
+mockups/
+*.psd
+*.ai
+*.sketch
+*.fig
+*.xd
+*.indd
+*.afphoto
+*.afdesign
+*.afpub
+
+# ---------------------------------------------------------------------------
+# Office & spreadsheets used for internal planning
+# ---------------------------------------------------------------------------
+*.docx
+*.doc
+*.xlsx
+*.xls
+*.numbers
+*.pages
+

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Stampd.Engine.Smoke</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Stampd.Core\Stampd.Core.csproj" />
+    <ProjectReference Include="..\..\src\Stampd.Engine\Stampd.Engine.csproj" />
+    <ProjectReference Include="..\..\src\Stampd.Crypto.LocalCertificate\Stampd.Crypto.LocalCertificate.csproj" />
+    <ProjectReference Include="..\..\src\Stampd.Timestamp.FreeTsa\Stampd.Timestamp.FreeTsa.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>Stampd.WebApi</RootNamespace>
+    <UserSecretsId>stampd-webapi-dev</UserSecretsId>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
+    <ProjectReference Include="..\Stampd.Engine\Stampd.Engine.csproj" />
+    <ProjectReference Include="..\Stampd.Crypto.LocalCertificate\Stampd.Crypto.LocalCertificate.csproj" />
+    <ProjectReference Include="..\Stampd.Crypto.Vault\Stampd.Crypto.Vault.csproj" />
+    <ProjectReference Include="..\Stampd.Timestamp.FreeTsa\Stampd.Timestamp.FreeTsa.csproj" />
+    <ProjectReference Include="..\Stampd.Infrastructure\Stampd.Infrastructure.csproj" />
+    <ProjectReference Include="..\Stampd.Infrastructure.Sqlite\Stampd.Infrastructure.Sqlite.csproj" />
+    <ProjectReference Include="..\Stampd.Storage.FileSystem\Stampd.Storage.FileSystem.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Microsoft.AspNetCore.OpenApi ships the native OpenAPI generator (the replacement for
+      Swashbuckle) in .NET 9+. Pair with Scalar.AspNetCore for a polished docs UI.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.0.0" />
+  </ItemGroup>
+
+</Project>

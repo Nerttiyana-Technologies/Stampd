@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Stampd.Engine</PackageId>
+    <Description>PdfSharp + BouncyCastle implementation of IStampdEngine. Stamps signature collateral and applies PAdES signatures.</Description>
+    <RootNamespace>Stampd.Engine</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      PDFsharp 6.x (MIT, https://github.com/empira/PDFsharp) is the actively-maintained
+      successor to PdfSharpCore. The PRD currently names PdfSharpCore; the spike uses
+      PDFsharp 6.x because it has first-class digital signature support since 6.1.
+      Update PRD §7 once the spike confirms this is the right call.
+    -->
+    <PackageReference Include="PDFsharp" Version="6.2.*" />
+
+    <!--
+      BouncyCastle.Cryptography (MIT) handles the CMS/PKCS#7 SignedData construction and
+      RFC 3161 timestamping. .NET's built-in System.Security.Cryptography.Pkcs.SignedCms
+      can sign, but PAdES requires specific signed attributes (ESS signing-certificate-v2,
+      content-type-OID, message-digest) that BouncyCastle exposes more directly.
+    -->
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+
+    <!--
+      SkiaSharp (MIT) is referenced for image decoding in the stamper. PDFsharp can embed
+      PNG/JPEG natively, so SkiaSharp is currently only needed if we want to pre-process
+      signature images (e.g. trim transparent borders). Keeping the reference for parity
+      with the PRD; can be removed if unused.
+    -->
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
+  </ItemGroup>
+
+</Project>
