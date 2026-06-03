@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Stampd.Revocation.Http</PackageId>
+    <Description>HTTP-based OCSP and CRL fetchers for Stampd's revocation pipeline. Used to embed revocation material into PAdES B-LT signatures.</Description>
+    <RootNamespace>Stampd.Revocation.Http</RootNamespace>
+    <!--
+      CA1848 / CA1873 — high-performance logging rules that demand LoggerMessage.Define
+      delegates. Revocation lookups are HTTP round-trips taking 100ms+; the message
+      construction cost is irrelevant in this hot path. Suppressed project-wide.
+    -->
+    <NoWarn>$(NoWarn);CA1848;CA1873</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+  </ItemGroup>
+
+</Project>

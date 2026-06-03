@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Stampd.Timestamp.Rfc3161</PackageId>
+    <Description>Generic configurable RFC 3161 timestamp authority provider for Stampd. Works with FreeTSA, DigiCert, GlobalSign, Sectigo, internal AD CS / OpenSSL TSAs — anything that speaks RFC 3161 over HTTP.</Description>
+    <RootNamespace>Stampd.Timestamp.Rfc3161</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.8" />
+  </ItemGroup>
+
+</Project>
