@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Stampd.Engine.Tests</RootNamespace>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!--
+      CA1707 — identifier contains underscores. xUnit test methods conventionally use
+               PascalCase_With_Underscores ("Method_Scenario_Expected") because it reads
+               naturally in test output. Suppressed for this project only.
+      CA1812 — class is never instantiated. xUnit's IClassFixture instantiates the fixture
+               via reflection; analyzer can't see that.
+      xUnit2007 — false positive when comparing byte[] hashes.
+    -->
+    <NoWarn>$(NoWarn);CA1707;CA1812</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Stampd.Core\Stampd.Core.csproj" />
+    <ProjectReference Include="..\..\src\Stampd.Engine\Stampd.Engine.csproj" />
+    <ProjectReference Include="..\..\src\Stampd.Crypto.LocalCertificate\Stampd.Crypto.LocalCertificate.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" Version="2.0.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+  </ItemGroup>
+
+</Project>

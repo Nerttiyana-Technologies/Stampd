@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Stampd.Core</PackageId>
+    <Description>Stampd domain types and contracts. Zero runtime dependencies.</Description>
+    <RootNamespace>Stampd.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>

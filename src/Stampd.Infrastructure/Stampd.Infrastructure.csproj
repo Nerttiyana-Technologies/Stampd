@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Stampd.Infrastructure</PackageId>
+    <Description>EF Core DbContext, entity configurations, and provider-agnostic infrastructure for Stampd.</Description>
+    <RootNamespace>Stampd.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      EF Core 9 is used while EF Core 10 stabilises. The DbContext targets only the public
+      EF Core surface (no provider-specific calls), so a bump to EF 10 is a single version
+      change here.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

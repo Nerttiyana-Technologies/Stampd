@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Stampd.Storage.FileSystem</PackageId>
+    <Description>Filesystem-backed IDocumentStorageProvider for Stampd. Suitable for development, single-node deployments, and demos. Production setups should prefer Azure Blob or AWS S3 adapters.</Description>
+    <RootNamespace>Stampd.Storage.FileSystem</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

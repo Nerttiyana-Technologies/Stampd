@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Stampd.Timestamp.FreeTsa</PackageId>
+    <Description>FreeTSA (freetsa.org) RFC 3161 timestamp authority provider for Stampd. Suitable for development, demos, and self-hosted production where the free FreeTSA service is acceptable.</Description>
+    <RootNamespace>Stampd.Timestamp.FreeTsa</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>
