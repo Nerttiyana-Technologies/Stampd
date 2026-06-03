@@ -4,6 +4,9 @@ using System.Security.Cryptography.X509Certificates;
 using Stampd.Core.Sealing;
 
 using VaultSharp;
+using VaultSharp.V1.AuthMethods;
+using VaultSharp.V1.AuthMethods.AppRole;
+using VaultSharp.V1.AuthMethods.Kubernetes;
 using VaultSharp.V1.AuthMethods.Token;
 using VaultSharp.V1.SecretsEngines;
 using VaultSharp.V1.SecretsEngines.Transit;
@@ -36,10 +39,31 @@ public sealed class VaultSealingProvider : ICryptographicSealingProvider
         _vault = vaultClient ?? new VaultClient(
             new VaultClientSettings(
                 _options.VaultAddress!.ToString(),
-                new TokenAuthMethodInfo(_options.Token!)));
+                BuildAuthMethodInfo(_options)));
 
         _certificate = new Lazy<X509Certificate2>(LoadCertificate);
     }
+
+    /// <summary>
+    /// Constructs the VaultSharp <see cref="IAuthMethodInfo"/> for the configured
+    /// authentication method. VaultSharp handles token caching and renewal internally
+    /// for AppRole and Kubernetes — the client transparently re-logins when the lease
+    /// expires, so no rotation code is needed here.
+    /// </summary>
+    private static IAuthMethodInfo BuildAuthMethodInfo(VaultSealingOptions options) => options.AuthMethod switch
+    {
+        VaultAuthMethod.Token => new TokenAuthMethodInfo(options.Token!),
+        VaultAuthMethod.AppRole => new AppRoleAuthMethodInfo(
+            mountPoint: options.AppRoleMountPath,
+            roleId: options.AppRoleId!,
+            secretId: options.AppRoleSecretId!),
+        VaultAuthMethod.Kubernetes => new KubernetesAuthMethodInfo(
+            mountPoint: options.KubernetesMountPath,
+            roleName: options.KubernetesRole!,
+            jwt: File.ReadAllText(options.KubernetesServiceAccountTokenPath)),
+        _ => throw new InvalidOperationException(
+            $"Unknown {nameof(VaultAuthMethod)} value: {options.AuthMethod}."),
+    };
 
     /// <inheritdoc />
     public string Name => "Vault";

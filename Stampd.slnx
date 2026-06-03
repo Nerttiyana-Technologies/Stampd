@@ -8,6 +8,7 @@
     <Project Path="src/Stampd.Infrastructure.Sqlite/Stampd.Infrastructure.Sqlite.csproj" />
     <Project Path="src/Stampd.Crypto.LocalCertificate/Stampd.Crypto.LocalCertificate.csproj" />
     <Project Path="src/Stampd.Crypto.AzureKeyVault/Stampd.Crypto.AzureKeyVault.csproj" />
+    <Project Path="src/Stampd.Crypto.AwsKms/Stampd.Crypto.AwsKms.csproj" />
     <Project Path="src/Stampd.Crypto.Vault/Stampd.Crypto.Vault.csproj" />
     <Project Path="src/Stampd.Timestamp.Rfc3161/Stampd.Timestamp.Rfc3161.csproj" />
     <Project Path="src/Stampd.Timestamp.FreeTsa/Stampd.Timestamp.FreeTsa.csproj" />
