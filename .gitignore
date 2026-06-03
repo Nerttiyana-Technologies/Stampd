@@ -486,7 +486,11 @@ PRD-*.md
 ROADMAP-internal.md
 notes/
 private/
-internal/
+# Root-level only — keep tests/.../Internal/ test helpers tracked. Without the leading
+# slash, `internal/` matches every nested folder named "internal" (and "Internal" on
+# case-insensitive macOS/Windows filesystems), which silently un-tracks the test
+# helpers under tests/Stampd.Engine.Tests/Internal/.
+/internal/
 
 # ---------------------------------------------------------------------------
 # Presentations
