@@ -74,14 +74,24 @@ internal sealed class WebhookDeliveryWorker : BackgroundService
             var db = scope.ServiceProvider.GetRequiredService<StampdDbContext>();
 
             var now = DateTimeOffset.UtcNow;
-            var batch = await db.WebhookDeliveries
+
+            // SQLite can't translate WHERE/ORDER BY on DateTimeOffset columns. We materialize
+            // a capped set of all pending deliveries and filter+sort client-side. The table
+            // is bounded by (subscribers × MaxAttempts) which is dev-scale fine; a v1.2
+            // follow-up should value-convert NextAttemptAtUtc to long (epoch ms) so the
+            // filter can run server-side at production scale.
+            var pendingPool = await db.WebhookDeliveries
                 .Include(d => d.WebhookEndpoint)
                 .IgnoreQueryFilters()
+                .Take(500)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            var batch = pendingPool
                 .Where(d => d.NextAttemptAtUtc <= now)
                 .OrderBy(d => d.NextAttemptAtUtc)
                 .Take(20)
-                .ToListAsync(ct)
-                .ConfigureAwait(false);
+                .ToList();
 
             if (batch.Count == 0)
             {
