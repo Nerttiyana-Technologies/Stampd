@@ -1,0 +1,31 @@
+@*
+    Root document. Loads Inter from Google Fonts, the Stampd design system, FluentUI
+    reboot (kept for the input components only — shell is custom), and the theme + PDF.js
+    helpers.
+*@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="preconnect" href="https://rsms.me/" crossorigin />
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+    <link href="_content/Microsoft.FluentUI.AspNetCore.Components/css/reboot.css" rel="stylesheet" />
+    <link rel="stylesheet" href="@Assets["css/site.css"]" />
+    <HeadOutlet />
+</head>
+<body>
+    <Routes />
+    <script src="_framework/blazor.web.js"></script>
+    <script type="importmap">
+        {
+          "imports": {
+            "pdfjs": "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs",
+            "pdfjs-worker": "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs"
+          }
+        }
+    </script>
+    <script src="/js/theme.js"></script>
+</body>
+</html>

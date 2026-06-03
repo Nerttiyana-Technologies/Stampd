@@ -1,0 +1,115 @@
+@page "/designer"
+@rendermode InteractiveServer
+@inject DesignerApiClient Api
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+
+<PageTitle>Designer — Stampd</PageTitle>
+
+<div class="stampd-page">
+    <section class="stampd-hero">
+        <h1 class="stampd-hero-title">Template designer</h1>
+        <p class="stampd-hero-sub">
+            Manage signing templates. Existing templates are listed below; use the action button
+            to create a new one with PDF + roles + drag-placed fields.
+        </p>
+        <div class="stampd-hero-meta">
+            <div>
+                <strong>Authoring API</strong>
+                <code class="stampd-code">POST /api/templates</code>
+            </div>
+        </div>
+    </section>
+
+    <DesignerAuthBar @ref="_authBar" OnTokenChanged="OnTokenChanged" />
+
+    <section class="stampd-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom: 1rem;">
+            <h2 class="stampd-card-title" style="margin:0;">Templates</h2>
+            <a class="stampd-btn stampd-btn--primary" href="/designer/new">+ New template</a>
+        </div>
+
+        @if (_loading)
+        {
+            <p class="stampd-page-subtitle">Loading…</p>
+        }
+        else if (string.IsNullOrEmpty(_token))
+        {
+            <p class="stampd-page-subtitle">Enter a JWT bearer token above to list templates.</p>
+        }
+        else if (_templates is null)
+        {
+            <div class="signer-error">Failed to load templates. Check that the WebApi is running and the token is valid.</div>
+        }
+        else if (_templates.Count == 0)
+        {
+            <p class="stampd-page-subtitle">No templates yet. Click <strong>New template</strong> to author your first.</p>
+        }
+        else
+        {
+            <div class="stampd-template-table">
+                <div class="stampd-template-row stampd-template-head">
+                    <div>Name</div>
+                    <div>Roles</div>
+                    <div>Fields</div>
+                    <div>Updated</div>
+                    <div></div>
+                </div>
+                @foreach (var t in _templates)
+                {
+                    <div class="stampd-template-row">
+                        <div>
+                            <div style="font-weight:600;">@t.Name</div>
+                            @if (!string.IsNullOrWhiteSpace(t.Description))
+                            {
+                                <div style="font-size:0.82rem; color: var(--stampd-muted);">@t.Description</div>
+                            }
+                        </div>
+                        <div>@t.RoleCount</div>
+                        <div>@t.FieldCount</div>
+                        <div style="font-size:0.85rem; color: var(--stampd-muted);">
+                            @t.UpdatedAtUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
+                        </div>
+                        <div>
+                            <code class="stampd-code">@t.Id.ToString("N")[..8]</code>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private DesignerAuthBar? _authBar;
+    private string _token = string.Empty;
+    private IReadOnlyList<TemplateSummary>? _templates;
+    private bool _loading;
+
+    private async Task OnTokenChanged(string token)
+    {
+        _token = token;
+        if (string.IsNullOrEmpty(token))
+        {
+            _templates = null;
+            return;
+        }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _templates = await Api.ListAsync(_token, CancellationToken.None);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}

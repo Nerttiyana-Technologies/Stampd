@@ -1,0 +1,74 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<section class="stampd-card stampd-card--inset">
+    <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+        <div style="min-width: 0; flex: 1;">
+            <div class="stampd-kpi-label" style="margin-bottom:4px;">JWT bearer token</div>
+            <input type="password"
+                   class="stampd-auth-input"
+                   value="@_token"
+                   placeholder="Paste a JWT from /api/auth/dev-token or your IdP…"
+                   @oninput="OnInput" />
+        </div>
+        <button class="stampd-btn stampd-btn--ghost"
+                type="button"
+                @onclick="ClearAsync"
+                disabled="@(string.IsNullOrEmpty(_token))">
+            Clear
+        </button>
+        <div class="stampd-chip @(string.IsNullOrEmpty(_token) ? "stampd-chip--warning" : "stampd-chip--success")">
+            @(string.IsNullOrEmpty(_token) ? "Not signed in" : "Signed in")
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter] public EventCallback<string> OnTokenChanged { get; set; }
+
+    private IJSObjectReference? _auth;
+    private string _token = string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _auth = await JS.InvokeAsync<IJSObjectReference>("import", "/js/designer-auth.js");
+            var stored = await _auth.InvokeAsync<string>("get");
+            if (!string.IsNullOrEmpty(stored))
+            {
+                _token = stored;
+                await OnTokenChanged.InvokeAsync(stored);
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        _token = e.Value?.ToString() ?? string.Empty;
+        if (_auth is not null)
+        {
+            await _auth.InvokeVoidAsync("set", _token);
+        }
+        await OnTokenChanged.InvokeAsync(_token);
+    }
+
+    private async Task ClearAsync()
+    {
+        _token = string.Empty;
+        if (_auth is not null)
+        {
+            await _auth.InvokeVoidAsync("clear");
+        }
+        await OnTokenChanged.InvokeAsync(_token);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_auth is not null)
+        {
+            try { await _auth.DisposeAsync(); } catch { /* ignore */ }
+        }
+    }
+}

@@ -1,0 +1,349 @@
+@page "/designer/new"
+@rendermode InteractiveServer
+@inject DesignerApiClient Api
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+
+<PageTitle>New template — Stampd</PageTitle>
+
+<div class="stampd-page">
+    <section class="stampd-hero">
+        <h1 class="stampd-hero-title">New template</h1>
+        <p class="stampd-hero-sub">
+            Upload a PDF, define recipient roles, then click on any page to place fields.
+            Save when you're done — the template becomes available for signing requests.
+        </p>
+    </section>
+
+    <DesignerAuthBar @ref="_authBar" OnTokenChanged="OnTokenChanged" />
+
+    @if (string.IsNullOrEmpty(_token))
+    {
+        <section class="stampd-card">
+            <p class="stampd-page-subtitle">Provide a JWT bearer token above to save templates.</p>
+        </section>
+    }
+    else
+    {
+        <section class="stampd-card">
+            <h2 class="stampd-card-title">1. Basics</h2>
+            <div style="display:grid; grid-template-columns: 1fr 2fr; gap: 0.6rem 1rem; align-items: center; margin-top: 0.75rem;">
+                <label class="signer-field-label">Name</label>
+                <input class="stampd-auth-input" @bind="_name" placeholder="e.g. NDA v3" />
+
+                <label class="signer-field-label">Description</label>
+                <input class="stampd-auth-input" @bind="_description" placeholder="Optional internal description" />
+            </div>
+        </section>
+
+        <section class="stampd-card">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem;">
+                <h2 class="stampd-card-title" style="margin:0;">2. Roles</h2>
+                <button class="stampd-btn stampd-btn--ghost" type="button" @onclick="AddRole">+ Add role</button>
+            </div>
+            @if (_roles.Count == 0)
+            {
+                <p class="stampd-page-subtitle">Add at least one role (e.g. <em>Signer</em>) — recipients will be assigned roles when a signing request is dispatched.</p>
+            }
+            else
+            {
+                <div style="display:flex; flex-direction:column; gap:0.6rem;">
+                    @for (var i = 0; i < _roles.Count; i++)
+                    {
+                        var idx = i;
+                        var role = _roles[idx];
+                        <div style="display:grid; grid-template-columns: 2fr 100px 1fr 80px; gap:0.5rem; align-items:center;">
+                            <input class="stampd-auth-input" @bind="role.Name" placeholder="Role name" />
+                            <input class="stampd-auth-input" type="number" min="1" @bind="role.RoutingOrder" />
+                            <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.85rem;">
+                                <input type="checkbox" @bind="role.RequiresIdentityVerification" />
+                                Requires identity verification
+                            </label>
+                            <button class="stampd-btn stampd-btn--ghost" type="button" @onclick="() => _roles.RemoveAt(idx)">Remove</button>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="stampd-card">
+            <h2 class="stampd-card-title">3. PDF</h2>
+            <div style="display:flex; gap:0.75rem; align-items:center; margin-top:0.5rem; flex-wrap:wrap;">
+                <InputFile accept="application/pdf" OnChange="OnPdfPickedAsync" />
+                @if (!string.IsNullOrEmpty(_pdfFileName))
+                {
+                    <span class="stampd-chip stampd-chip--accent">@_pdfFileName</span>
+                }
+                @if (_loadingPdf)
+                {
+                    <span class="stampd-page-subtitle">Reading PDF…</span>
+                }
+            </div>
+            @if (_pdfError is not null)
+            {
+                <div class="signer-error" style="margin-top: 0.75rem;">@_pdfError</div>
+            }
+        </section>
+
+        @if (!string.IsNullOrEmpty(_pdfBase64))
+        {
+            <section class="stampd-card">
+                <h2 class="stampd-card-title">4. Place fields</h2>
+                <p class="stampd-page-subtitle" style="margin-bottom: 0.75rem;">
+                    Pick a field kind, then click on the PDF to place it. Edit role / size in the
+                    list below.
+                </p>
+
+                <div style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom: 0.75rem;">
+                    @foreach (var kind in new[] { "Signature", "Initials", "Date", "Text", "Checkbox" })
+                    {
+                        <button type="button"
+                                class="stampd-chip @(_activeKind == kind ? "stampd-chip--accent" : "")"
+                                style="cursor:pointer;"
+                                @onclick="() => _activeKind = kind">
+                            @kind
+                        </button>
+                    }
+                </div>
+
+                <div class="designer-canvas-host" @ref="_canvasHost"></div>
+
+                @if (_fields.Count > 0)
+                {
+                    <div style="margin-top: 1rem;">
+                        <h3 style="font-size:0.74rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--stampd-muted); margin:0 0 0.5rem;">Placed fields</h3>
+                        <div class="stampd-template-table">
+                            <div class="stampd-template-row stampd-template-head">
+                                <div>#</div>
+                                <div>Page</div>
+                                <div>Kind</div>
+                                <div>Role</div>
+                                <div>Pos / size (%)</div>
+                                <div></div>
+                            </div>
+                            @for (var i = 0; i < _fields.Count; i++)
+                            {
+                                var idx = i;
+                                var f = _fields[idx];
+                                <div class="stampd-template-row">
+                                    <div>@(idx + 1)</div>
+                                    <div>@f.PageNumber</div>
+                                    <div>@f.Kind</div>
+                                    <div>
+                                        <select @bind="f.AssignedRoleName" class="stampd-auth-input" style="padding:0.3rem 0.5rem;">
+                                            <option value="">(unassigned)</option>
+                                            @foreach (var role in _roles.Where(r => !string.IsNullOrWhiteSpace(r.Name)))
+                                            {
+                                                <option value="@role.Name">@role.Name</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div style="font-family: monospace; font-size:0.8rem;">
+                                        x:@f.X.ToString("0") y:@f.Y.ToString("0") w:@f.Width.ToString("0") h:@f.Height.ToString("0")
+                                    </div>
+                                    <div>
+                                        <button class="stampd-btn stampd-btn--ghost" type="button" @onclick="() => RemoveField(idx)">×</button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </section>
+
+            <section class="stampd-card">
+                <button class="stampd-btn stampd-btn--primary"
+                        type="button"
+                        disabled="@(!CanSave() || _saving)"
+                        @onclick="SaveAsync">
+                    @(_saving ? "Saving…" : "Save template")
+                </button>
+                @if (_saveError is not null)
+                {
+                    <div class="signer-error" style="margin-top: 0.75rem;">@_saveError</div>
+                }
+            </section>
+        }
+    }
+</div>
+
+@code {
+    private DesignerAuthBar? _authBar;
+    private string _token = string.Empty;
+
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+    private string _pdfFileName = string.Empty;
+    private string _pdfBase64 = string.Empty;
+
+    private readonly List<DesignerRole> _roles = new() { new DesignerRole { Name = "Signer", RoutingOrder = 1 } };
+    private readonly List<DesignerField> _fields = new();
+    private int _nextIndex = 0;
+    private string _activeKind = "Signature";
+
+    private ElementReference _canvasHost;
+    private IJSObjectReference? _canvas;
+    private DotNetObjectReference<DesignerNew>? _selfRef;
+    private bool _saving;
+    private string? _saveError;
+    private bool _loadingPdf;
+    private string? _pdfError;
+
+    private void AddRole() => _roles.Add(new DesignerRole { Name = string.Empty, RoutingOrder = _roles.Count + 1 });
+    private void RemoveField(int idx) => _fields.RemoveAt(idx);
+
+    private async Task OnTokenChanged(string token)
+    {
+        _token = token;
+        await Task.CompletedTask;
+    }
+
+    private async Task OnPdfPickedAsync(InputFileChangeEventArgs e)
+    {
+        _pdfError = null;
+        _loadingPdf = true;
+        StateHasChanged();
+        try
+        {
+            var file = e.File;
+            if (file is null)
+            {
+                _pdfError = "No file selected.";
+                return;
+            }
+
+            // Cap at 50 MB — the WebApi enforces the same; saves us a wasted upload.
+            const long MaxBytes = 50 * 1024 * 1024;
+            if (file.Size > MaxBytes)
+            {
+                _pdfError = $"File is too large ({file.Size / 1024 / 1024} MB). Limit is 50 MB.";
+                return;
+            }
+
+            using var ms = new MemoryStream();
+            await using (var src = file.OpenReadStream(MaxBytes))
+            {
+                await src.CopyToAsync(ms);
+            }
+
+            _pdfFileName = file.Name;
+            _pdfBase64 = Convert.ToBase64String(ms.ToArray());
+
+            // Render the canvas now that we have the PDF.
+            StateHasChanged();
+            await RenderCanvasAsync();
+        }
+        catch (Exception ex)
+        {
+            _pdfError = $"PDF read failed: {ex.Message}";
+        }
+        finally
+        {
+            _loadingPdf = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RenderCanvasAsync()
+    {
+        _canvas ??= await JS.InvokeAsync<IJSObjectReference>("import", "/js/designer-canvas.js");
+        _selfRef ??= DotNetObjectReference.Create(this);
+        await _canvas.InvokeVoidAsync("render", _canvasHost, _pdfBase64, _selfRef);
+        await SyncOverlaysAsync();
+    }
+
+    private async Task SyncOverlaysAsync()
+    {
+        if (_canvas is null) return;
+        await _canvas.InvokeVoidAsync("syncOverlays", _canvasHost, _fields.Select(f => new
+        {
+            pageNumber = f.PageNumber,
+            x = f.X,
+            y = f.Y,
+            width = f.Width,
+            height = f.Height,
+            kind = f.Kind,
+            label = f.Label,
+            assignedRoleName = f.AssignedRoleName,
+        }).ToArray());
+    }
+
+    [JSInvokable]
+    public async Task OnPageClick(int pageNo, double xPct, double yPct)
+    {
+        // Reasonable defaults per kind; the canvas overlay enforces a min height.
+        var (w, h) = _activeKind switch
+        {
+            "Signature" => (28.0, 6.0),
+            "Initials"  => (10.0, 5.0),
+            "Date"      => (12.0, 3.5),
+            "Checkbox"  => (3.0, 3.0),
+            _           => (20.0, 4.0),
+        };
+
+        _fields.Add(new DesignerField
+        {
+            Index = _nextIndex++,
+            PageNumber = pageNo,
+            X = Math.Round(xPct, 2),
+            Y = Math.Round(yPct, 2),
+            Width = w,
+            Height = h,
+            Kind = _activeKind,
+            AssignedRoleName = _roles.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.Name))?.Name,
+        });
+        await InvokeAsync(StateHasChanged);
+        await SyncOverlaysAsync();
+    }
+
+    private bool CanSave()
+        => !string.IsNullOrWhiteSpace(_name)
+        && !string.IsNullOrEmpty(_pdfBase64)
+        && _roles.Any(r => !string.IsNullOrWhiteSpace(r.Name));
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _saveError = null;
+        try
+        {
+            var body = new CreateTemplateRequest(
+                Name: _name.Trim(),
+                Description: string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+                SourcePdfBase64: _pdfBase64,
+                Roles: _roles.Where(r => !string.IsNullOrWhiteSpace(r.Name))
+                             .Select(r => new TemplateRoleDto(r.Name.Trim(), r.RoutingOrder, r.RequiresIdentityVerification))
+                             .ToArray(),
+                Fields: _fields.Select(f => new TemplateFieldDto(
+                    PageNumber: f.PageNumber,
+                    Bounds: new ApiPercentageRect(f.X, f.Y, f.Width, f.Height),
+                    Kind: f.Kind,
+                    AssignedRoleName: f.AssignedRoleName,
+                    IsRequired: f.IsRequired,
+                    Label: f.Label)).ToArray());
+
+            var (ok, id, err) = await Api.CreateAsync(_token, body, CancellationToken.None);
+            if (!ok)
+            {
+                _saveError = err ?? "Save failed";
+                return;
+            }
+            Navigation.NavigateTo("/designer");
+        }
+        catch (Exception ex)
+        {
+            _saveError = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_canvas is not null) try { await _canvas.DisposeAsync(); } catch { }
+        _selfRef?.Dispose();
+    }
+}

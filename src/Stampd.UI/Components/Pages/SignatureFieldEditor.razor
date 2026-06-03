@@ -1,0 +1,159 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="signer-field">
+    <label class="signer-field-label">
+        @(Field.Label ?? Field.Kind)
+        @if (Field.IsRequired)
+        {
+            <span class="signer-field-required">*</span>
+        }
+    </label>
+
+    @switch (Field.Kind)
+    {
+        case "Text":
+            <FluentTextField Value="@_textValue"
+                             @oninput="OnTextInput"
+                             Placeholder="Type your response…" />
+            break;
+
+        case "Date":
+            @* Native HTML date input — renders the real calendar in every modern
+               browser. FluentDatePicker rendered as a strip-style scroller on
+               recent versions which made date entry awkward. *@
+            <input type="date"
+                   class="stampd-auth-input"
+                   value="@_textValue"
+                   @oninput="OnDateInput" />
+            break;
+
+        case "Checkbox":
+            <FluentCheckbox Value="@_boolValue"
+                            ValueChanged="OnCheckboxChanged"
+                            Label="I agree" />
+            break;
+
+        case "Initials":
+        case "Signature":
+            <div>
+                <canvas class="signer-signature-pad"
+                        width="380" height="140"
+                        @ref="_canvasElement"></canvas>
+                <div class="signer-signature-actions">
+                    <button type="button"
+                            class="stampd-btn stampd-btn--ghost"
+                            style="padding: 0.4rem 0.85rem; font-size: 0.82rem;"
+                            @onclick="ClearCanvasAsync">
+                        Clear
+                    </button>
+                    @if (_signatureCaptured)
+                    {
+                        <span class="stampd-chip stampd-chip--success" style="font-size: 0.75rem;">Captured ✓</span>
+                    }
+                    else
+                    {
+                        <span class="stampd-page-subtitle" style="font-size: 0.75rem;">Draw above</span>
+                    }
+                </div>
+            </div>
+            break;
+
+        default:
+            <div class="signer-error">Unsupported field kind: @Field.Kind</div>
+            break;
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RecipientFieldView Field { get; set; } = default!;
+    [Parameter] public ApiFieldValue? CurrentValue { get; set; }
+    [Parameter] public EventCallback<ApiFieldValue?> OnValueChanged { get; set; }
+
+    private string? _textValue;
+    private bool _boolValue;
+    private bool _signatureCaptured;
+    private ElementReference _canvasElement;
+    private IJSObjectReference? _signatureModule;
+    private DotNetObjectReference<SignatureFieldEditor>? _selfRef;
+
+    protected override void OnParametersSet()
+    {
+        if (CurrentValue?.Text is { } t)
+        {
+            _textValue = t;
+            if (Field.Kind == "Checkbox")
+            {
+                _boolValue = string.Equals(t, "true", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Field.Kind is "Signature" or "Initials")
+        {
+            _signatureModule = await JS.InvokeAsync<IJSObjectReference>(
+                "import", "/js/signature-pad.js");
+            _selfRef = DotNetObjectReference.Create(this);
+            // Pass a dotnet ref so the pad can auto-commit on pointer-up. No more
+            // manual "Use signature" button — drawing alone counts as submission.
+            await _signatureModule.InvokeVoidAsync("attach", _canvasElement, _selfRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnSignatureStroke()
+    {
+        if (_signatureModule is null) return;
+        var dataUrl = await _signatureModule.InvokeAsync<string>("toBase64", _canvasElement);
+        var b64 = dataUrl.Contains(',') ? dataUrl[(dataUrl.IndexOf(',') + 1)..] : dataUrl;
+        _signatureCaptured = true;
+        await OnValueChanged.InvokeAsync(new ApiFieldValue(ImageBase64: b64));
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnTextInput(ChangeEventArgs e)
+    {
+        _textValue = e.Value?.ToString();
+        await OnValueChanged.InvokeAsync(
+            string.IsNullOrWhiteSpace(_textValue)
+                ? null
+                : new ApiFieldValue(Text: _textValue));
+    }
+
+    private async Task OnDateInput(ChangeEventArgs e)
+    {
+        _textValue = e.Value?.ToString();
+        await OnValueChanged.InvokeAsync(
+            string.IsNullOrWhiteSpace(_textValue)
+                ? null
+                : new ApiFieldValue(Text: _textValue));
+    }
+
+    private async Task OnCheckboxChanged(bool newValue)
+    {
+        _boolValue = newValue;
+        await OnValueChanged.InvokeAsync(
+            new ApiFieldValue(Text: newValue ? "true" : "false"));
+    }
+
+    private async Task ClearCanvasAsync()
+    {
+        if (_signatureModule is not null)
+        {
+            await _signatureModule.InvokeVoidAsync("clear", _canvasElement);
+            _signatureCaptured = false;
+            await OnValueChanged.InvokeAsync(null);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_signatureModule is not null)
+        {
+            try { await _signatureModule.DisposeAsync(); } catch { /* ignore */ }
+        }
+        _selfRef?.Dispose();
+    }
+}

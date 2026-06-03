@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 
 using Stampd.Core.Entities;
+using Stampd.Core.Storage;
 using Stampd.WebApi.Models;
 using Stampd.WebApi.Services;
 
@@ -20,7 +21,51 @@ internal static class RecipientSigningEndpoints
             .WithName("RecipientSubmitSignature")
             .WithSummary("Recipient-facing: submit field values. When all required recipients have signed, the document is finalized in the same call.");
 
+        group.MapGet("/{accessToken}/document", DownloadSourceAsync)
+            .WithName("RecipientDownloadSourceDocument")
+            .WithSummary("Recipient-facing: streams the unsigned source PDF so the signer can read what they're signing. Only available while the recipient is in Invited or Viewed state.");
+
         return builder;
+    }
+
+    private static async Task<IResult> DownloadSourceAsync(
+        string accessToken,
+        [FromServices] SigningWorkflowService workflow,
+        [FromServices] IDocumentStorageProvider storage,
+        CancellationToken ct)
+    {
+        var pair = await workflow.ResolveByAccessTokenAsync(accessToken, ct).ConfigureAwait(false);
+        if (pair is null)
+        {
+            return Results.NotFound();
+        }
+
+        var (request, recipient) = pair.Value;
+
+        // Recipient must be in a state where viewing the document is meaningful. We don't
+        // serve the unsigned PDF once they've already signed, declined, or expired — that
+        // path is reserved for /api/signed-documents/{id}/download with proper auth.
+        if (recipient.Status is RecipientStatus.Signed or RecipientStatus.Declined or RecipientStatus.Expired)
+        {
+            return Results.Problem(
+                $"This signing link is in terminal state {recipient.Status} and the source document is no longer available here.",
+                statusCode: 409);
+        }
+
+        if (recipient.Status == RecipientStatus.Pending)
+        {
+            return Results.Problem(
+                "It's not your turn to sign yet — earlier recipients in the routing order must finish first.",
+                statusCode: 409);
+        }
+
+        var template = request.DocumentTemplate!;
+        var bytes = await storage.RetrieveAsync(template.SourcePdfStorageKey, ct).ConfigureAwait(false);
+
+        return Results.File(
+            fileContents: bytes,
+            contentType: "application/pdf",
+            fileDownloadName: $"template-{template.Id:N}.pdf");
     }
 
     private static async Task<IResult> GetAsync(

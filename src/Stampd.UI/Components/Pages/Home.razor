@@ -1,0 +1,24 @@
+@page "/"
+
+<PageTitle>Stampd</PageTitle>
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+    <FluentLabel Typo="Typography.H1">Welcome to Stampd</FluentLabel>
+    <FluentLabel Typo="Typography.Body">
+        Open-source, .NET-native PDF signing. To sign a document, open the link you
+        received in your invitation email — it looks like:
+    </FluentLabel>
+    <code class="stampd-code">@($"{BaseUrl}/sign/{{your-access-token}}")</code>
+    <FluentLabel Typo="Typography.Subject">
+        Or jump to the in-progress template designer:
+    </FluentLabel>
+    <FluentAnchor Href="/designer" Appearance="Appearance.Accent">
+        Open designer
+    </FluentAnchor>
+</FluentStack>
+
+@code {
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    private string BaseUrl => Navigation.BaseUri.TrimEnd('/');
+}

@@ -1,0 +1,56 @@
+@inherits LayoutComponentBase
+
+<div class="stampd-app">
+    <header class="stampd-topbar">
+        <div class="stampd-topbar-inner">
+            <div class="stampd-brand">
+                <span class="stampd-brand-mark">S</span>
+                <span class="stampd-brand-title">Stampd</span>
+                <span class="stampd-brand-sub">Signing Experience</span>
+            </div>
+
+            <div class="stampd-nav-spacer"></div>
+
+            <div class="stampd-topbar-actions">
+                @* Pure-JS toggle so it works on Static SSR pages without an interactive
+                   render mode. Icon swaps in theme.js as the document attribute changes. *@
+                <button class="stampd-theme-toggle"
+                        type="button"
+                        data-theme-toggle
+                        aria-label="Toggle theme"
+                        title="Toggle theme"
+                        onclick="window.stampdTheme.toggle()">
+                    ☾
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="stampd-main">
+        <ErrorBoundary>
+            <ChildContent>
+                @Body
+            </ChildContent>
+            <ErrorContent Context="ex">
+                <div class="stampd-card">
+                    <h2 class="stampd-page-title">Something went wrong</h2>
+                    <p class="stampd-page-subtitle">@ex.Message</p>
+                </div>
+            </ErrorContent>
+        </ErrorBoundary>
+    </main>
+
+    <footer class="stampd-footer">
+        <span>&copy; @DateTime.Now.Year Stampd — open-source e-signature for .NET. Apache 2.0.</span>
+        <span>Build @System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version</span>
+    </footer>
+</div>
+
+<FluentToastProvider />
+<FluentDialogProvider />
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
