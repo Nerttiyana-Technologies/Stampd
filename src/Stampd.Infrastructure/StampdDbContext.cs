@@ -30,6 +30,9 @@ public class StampdDbContext : DbContext
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<SignedDocumentRecord> SignedDocumentRecords => Set<SignedDocumentRecord>();
     public DbSet<OtpChallengeEntity> OtpChallenges => Set<OtpChallengeEntity>();
+    public DbSet<BulkSendJob> BulkSendJobs => Set<BulkSendJob>();
+    public DbSet<WebhookEndpoint> WebhookEndpoints => Set<WebhookEndpoint>();
+    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
 
     /// <summary>
     /// Resolves the tenant id used by every global query filter. Lifted to a method so
@@ -69,6 +72,15 @@ public class StampdDbContext : DbContext
             .HasQueryFilter(e => CurrentTenantId() == Guid.Empty || e.TenantId == CurrentTenantId());
 
         modelBuilder.Entity<SignedDocumentRecord>()
+            .HasQueryFilter(d => CurrentTenantId() == Guid.Empty || d.TenantId == CurrentTenantId());
+
+        modelBuilder.Entity<BulkSendJob>()
+            .HasQueryFilter(j => CurrentTenantId() == Guid.Empty || j.TenantId == CurrentTenantId());
+
+        modelBuilder.Entity<WebhookEndpoint>()
+            .HasQueryFilter(w => CurrentTenantId() == Guid.Empty || w.TenantId == CurrentTenantId());
+
+        modelBuilder.Entity<WebhookDelivery>()
             .HasQueryFilter(d => CurrentTenantId() == Guid.Empty || d.TenantId == CurrentTenantId());
 
         base.OnModelCreating(modelBuilder);
@@ -169,6 +181,60 @@ public class StampdDbContext : DbContext
                             throw new InvalidOperationException(
                                 "AuditEvent rows are append-only; the only permitted modification is GDPR redaction.");
                         }
+                    }
+
+                    break;
+
+                case BulkSendJob job:
+                    if (entry.State == EntityState.Added)
+                    {
+                        if (job.Id == Guid.Empty)
+                        {
+                            job.Id = Guid.NewGuid();
+                        }
+
+                        if (job.CreatedAtUtc == default)
+                        {
+                            job.CreatedAtUtc = now;
+                        }
+
+                        job.TenantId = EnsureTenant(job.TenantId, currentTenant, crossTenantAllowed);
+                    }
+
+                    break;
+
+                case WebhookEndpoint endpoint:
+                    if (entry.State == EntityState.Added)
+                    {
+                        if (endpoint.Id == Guid.Empty)
+                        {
+                            endpoint.Id = Guid.NewGuid();
+                        }
+
+                        if (endpoint.CreatedAtUtc == default)
+                        {
+                            endpoint.CreatedAtUtc = now;
+                        }
+
+                        endpoint.TenantId = EnsureTenant(endpoint.TenantId, currentTenant, crossTenantAllowed);
+                    }
+
+                    break;
+
+                case WebhookDelivery delivery:
+                    if (entry.State == EntityState.Added)
+                    {
+                        if (delivery.Id == Guid.Empty)
+                        {
+                            delivery.Id = Guid.NewGuid();
+                        }
+
+                        if (delivery.CreatedAtUtc == default)
+                        {
+                            delivery.CreatedAtUtc = now;
+                        }
+
+                        delivery.TenantId = EnsureTenant(delivery.TenantId, currentTenant, crossTenantAllowed);
                     }
 
                     break;

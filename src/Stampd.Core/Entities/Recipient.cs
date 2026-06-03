@@ -35,4 +35,12 @@ public sealed class Recipient
 
     /// <summary>Opaque per-recipient signing link token. Single-use; rotated on each invite resend.</summary>
     public string AccessToken { get; set; } = string.Empty;
+
+    /// <summary>
+    /// JSON-serialized field values this recipient submitted. Stored per-recipient so
+    /// multi-recipient documents can aggregate per-role submissions at finalization.
+    /// Shape: <c>{"fieldIndex": {"Text": "..."} | {"ImageBase64": "..."}}</c>.
+    /// Null until the recipient submits.
+    /// </summary>
+    public string? SubmittedFieldValuesJson { get; set; }
 }

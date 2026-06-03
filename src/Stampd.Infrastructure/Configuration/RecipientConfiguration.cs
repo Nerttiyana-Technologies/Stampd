@@ -21,6 +21,10 @@ internal sealed class RecipientConfiguration : IEntityTypeConfiguration<Recipien
         builder.Property(r => r.DeclineReason).HasMaxLength(2048);
         builder.Property(r => r.AccessToken).IsRequired().HasMaxLength(128);
 
+        // Aggregated submissions are stored as JSON. No HasMaxLength cap — payloads are
+        // dominated by base64-encoded signature images and can run to tens of KB.
+        builder.Property(r => r.SubmittedFieldValuesJson);
+
         builder.HasIndex(r => new { r.SigningRequestId, r.RoutingOrder });
         builder.HasIndex(r => r.AccessToken).IsUnique();
 

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Stampd.Tools.VaultByokImport</RootNamespace>
+    <AssemblyName>stampd-byok-import</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <!-- Console output: ignore "use LoggerMessage delegates" — this is a CLI, not a server. -->
+    <NoWarn>$(NoWarn);CA1848;CA1873;CA1303;CA1031</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+  </ItemGroup>
+
+</Project>
