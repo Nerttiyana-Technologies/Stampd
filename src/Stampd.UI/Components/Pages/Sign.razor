@@ -103,40 +103,121 @@ else
                     <div class="signer-recipient-email">@_view.RecipientEmail</div>
                 </div>
 
-                <div class="signer-panel-section">
-                    <h3>Fields to complete</h3>
-                    <div class="signer-field-list">
-                        @for (var i = 0; i < _view.Fields.Count; i++)
-                        {
-                            var idx = i;
-                            var field = _view.Fields[idx];
-                            <SignatureFieldEditor Field="field"
-                                                  CurrentValue="@(_values.TryGetValue(field.Index, out var v) ? v : null)"
-                                                  OnValueChanged="@(value => SetValue(field.Index, value))" />
-                        }
-                    </div>
-                </div>
+                @if (NeedsIdentityVerification)
+                {
+                    <div class="signer-panel-section">
+                        <h3>Verify your identity</h3>
+                        <p class="signer-panel-hint">
+                            The sender requires identity verification before you can sign.
+                            We'll email a 6-digit code to <strong>@_view.RecipientEmail</strong>.
+                        </p>
 
-                <div class="signer-panel-section">
-                    <button class="stampd-btn stampd-btn--primary signer-submit"
-                            type="button"
-                            disabled="@(!CanSubmit() || _submitting)"
-                            @onclick="SubmitAsync">
-                        @if (_submitting)
+                        @if (_otpVerificationId is null)
                         {
-                            <text>Submitting…</text>
+                            <button class="stampd-btn stampd-btn--primary"
+                                    type="button"
+                                    disabled="@_otpInitiating"
+                                    @onclick="InitiateVerificationAsync">
+                                @(_otpInitiating ? "Sending code…" : "Send verification code")
+                            </button>
                         }
                         else
                         {
-                            <text>Sign and complete</text>
-                        }
-                    </button>
+                            <div class="signer-otp-form">
+                                <label class="signer-field-label">6-digit code</label>
+                                <input class="stampd-auth-input"
+                                       type="text"
+                                       inputmode="numeric"
+                                       maxlength="6"
+                                       autocomplete="one-time-code"
+                                       placeholder="123456"
+                                       @bind="_otpCode"
+                                       @bind:event="oninput" />
 
-                    @if (_submitError is not null)
+                                @if (_otpExpiresAtUtc is { } expires)
+                                {
+                                    <div class="signer-panel-hint" style="margin-top:6px;">
+                                        Code expires @expires.LocalDateTime.ToString("HH:mm")
+                                        @if (!string.IsNullOrWhiteSpace(_otpHint))
+                                        {
+                                            <text> · @_otpHint</text>
+                                        }
+                                    </div>
+                                }
+
+                                <div style="display:flex; gap:8px; margin-top:10px;">
+                                    <button class="stampd-btn stampd-btn--primary"
+                                            type="button"
+                                            disabled="@(_otpVerifying || string.IsNullOrWhiteSpace(_otpCode))"
+                                            @onclick="VerifyIdentityAsync">
+                                        @(_otpVerifying ? "Verifying…" : "Verify code")
+                                    </button>
+                                    <button class="stampd-btn stampd-btn--ghost"
+                                            type="button"
+                                            disabled="@_otpInitiating"
+                                            @onclick="ResendVerificationAsync">
+                                        Resend
+                                    </button>
+                                </div>
+                            </div>
+                        }
+
+                        @if (_otpError is not null)
+                        {
+                            <div class="signer-error" style="margin-top: 12px;">@_otpError</div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    @if (_view.IdentityVerifiedAtUtc is not null)
                     {
-                        <div class="signer-error" style="margin-top: 12px;">@_submitError</div>
+                        <div class="signer-panel-section">
+                            <div class="signer-otp-verified">
+                                ✓ Identity verified
+                                @if (!string.IsNullOrWhiteSpace(_view.IdentityVerificationMethod))
+                                {
+                                    <text> · @_view.IdentityVerificationMethod</text>
+                                }
+                            </div>
+                        </div>
                     }
-                </div>
+
+                    <div class="signer-panel-section">
+                        <h3>Fields to complete</h3>
+                        <div class="signer-field-list">
+                            @for (var i = 0; i < _view.Fields.Count; i++)
+                            {
+                                var idx = i;
+                                var field = _view.Fields[idx];
+                                <SignatureFieldEditor Field="field"
+                                                      CurrentValue="@(_values.TryGetValue(field.Index, out var v) ? v : null)"
+                                                      OnValueChanged="@(value => SetValue(field.Index, value))" />
+                            }
+                        </div>
+                    </div>
+
+                    <div class="signer-panel-section">
+                        <button class="stampd-btn stampd-btn--primary signer-submit"
+                                type="button"
+                                disabled="@(!CanSubmit() || _submitting)"
+                                @onclick="SubmitAsync">
+                            @if (_submitting)
+                            {
+                                <text>Submitting…</text>
+                            }
+                            else
+                            {
+                                <text>Sign and complete</text>
+                            }
+                        </button>
+
+                        @if (_submitError is not null)
+                        {
+                            <div class="signer-error" style="margin-top: 12px;">@_submitError</div>
+                        }
+                    </div>
+                }
             </aside>
         </div>
     </div>
@@ -153,6 +234,21 @@ else
     private string? _submitError;
     private ElementReference _pdfHostElement;
     private IJSObjectReference? _pdfModule;
+
+    // Identity-verification state. Populated when the server says this recipient must
+    // pass an OTP gate before signing. Cleared on success when _view is re-fetched.
+    private string? _otpVerificationId;
+    private string? _otpCode;
+    private string? _otpError;
+    private string? _otpHint;
+    private DateTimeOffset? _otpExpiresAtUtc;
+    private bool _otpInitiating;
+    private bool _otpVerifying;
+
+    private bool NeedsIdentityVerification
+        => _view is not null
+        && _view.RequiresIdentityVerification
+        && _view.IdentityVerifiedAtUtc is null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -263,6 +359,97 @@ else
         finally
         {
             _submitting = false;
+        }
+    }
+
+    private async Task InitiateVerificationAsync()
+    {
+        if (_otpInitiating) return;
+
+        _otpInitiating = true;
+        _otpError = null;
+        _otpCode = null;
+        try
+        {
+            var (ok, body, err) = await Api.InitiateVerificationAsync(AccessToken, CancellationToken.None);
+            if (!ok || body is null)
+            {
+                _otpError = err ?? "Failed to send verification code.";
+                return;
+            }
+
+            _otpVerificationId = body.VerificationId;
+            _otpExpiresAtUtc = body.ExpiresAtUtc;
+            _otpHint = body.UserVisibleHint;
+        }
+        catch (Exception ex)
+        {
+            _otpError = ex.Message;
+        }
+        finally
+        {
+            _otpInitiating = false;
+        }
+    }
+
+    private async Task ResendVerificationAsync()
+    {
+        // Discard the existing challenge so InitiateVerificationAsync issues a fresh one.
+        _otpVerificationId = null;
+        _otpCode = null;
+        _otpHint = null;
+        _otpExpiresAtUtc = null;
+        await InitiateVerificationAsync();
+    }
+
+    private async Task VerifyIdentityAsync()
+    {
+        if (_otpVerifying || string.IsNullOrWhiteSpace(_otpVerificationId) || string.IsNullOrWhiteSpace(_otpCode))
+        {
+            return;
+        }
+
+        _otpVerifying = true;
+        _otpError = null;
+        try
+        {
+            var result = await Api.VerifyIdentityAsync(
+                AccessToken,
+                _otpVerificationId!,
+                _otpCode!.Trim(),
+                CancellationToken.None);
+
+            if (result is null)
+            {
+                _otpError = "Verification failed. Please request a new code and try again.";
+                return;
+            }
+
+            if (!result.Succeeded)
+            {
+                _otpError = result.FailureReason ?? "Code didn't match. Please try again.";
+                return;
+            }
+
+            // Success — re-fetch the view so the signing form renders with the
+            // updated IdentityVerifiedAtUtc.
+            var refreshed = await Api.GetSigningViewAsync(AccessToken, CancellationToken.None);
+            if (refreshed is not null)
+            {
+                _view = refreshed;
+            }
+            _otpVerificationId = null;
+            _otpCode = null;
+            _otpHint = null;
+            _otpExpiresAtUtc = null;
+        }
+        catch (Exception ex)
+        {
+            _otpError = ex.Message;
+        }
+        finally
+        {
+            _otpVerifying = false;
         }
     }
 

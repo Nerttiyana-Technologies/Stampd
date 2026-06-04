@@ -78,4 +78,55 @@ public sealed class StampdApiClient
             .ReadFromJsonAsync<RecipientSubmitResponse>(JsonOptions, ct)
             .ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Requests an identity-verification challenge be sent (Email OTP). Returns the
+    /// verification id + expiry the signer needs to echo back via VerifyIdentityAsync.
+    /// </summary>
+    public async Task<(bool Success, InitiateVerificationResponse? Body, string? Error)>
+        InitiateVerificationAsync(string accessToken, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(accessToken);
+
+        using var response = await _http.PostAsync(
+            $"/api/sign/{accessToken}/initiate-verification",
+            content: null,
+            ct).ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            return (false, null, $"HTTP {(int)response.StatusCode}: {err}");
+        }
+
+        var body = await response.Content
+            .ReadFromJsonAsync<InitiateVerificationResponse>(JsonOptions, ct)
+            .ConfigureAwait(false);
+        return (true, body, null);
+    }
+
+    /// <summary>Submits the OTP code; on success the recipient is marked identity-verified.</summary>
+    public async Task<VerifyIdentityResponse?> VerifyIdentityAsync(
+        string accessToken,
+        string verificationId,
+        string code,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(accessToken);
+
+        using var response = await _http.PostAsJsonAsync(
+            $"/api/sign/{accessToken}/verify-identity",
+            new VerifyIdentityRequest(verificationId, code),
+            JsonOptions,
+            ct).ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        return await response.Content
+            .ReadFromJsonAsync<VerifyIdentityResponse>(JsonOptions, ct)
+            .ConfigureAwait(false);
+    }
 }

@@ -13,7 +13,24 @@ public sealed record RecipientSigningView(
     string RecipientName,
     string RecipientEmail,
     string Status,
-    IReadOnlyList<RecipientFieldView> Fields);
+    IReadOnlyList<RecipientFieldView> Fields,
+    bool RequiresIdentityVerification,
+    DateTimeOffset? IdentityVerifiedAtUtc,
+    string? IdentityVerificationMethod);
+
+public sealed record InitiateVerificationResponse(
+    [property: JsonPropertyName("verificationId")] string VerificationId,
+    [property: JsonPropertyName("expiresAtUtc")] DateTimeOffset ExpiresAtUtc,
+    [property: JsonPropertyName("userVisibleHint")] string? UserVisibleHint);
+
+public sealed record VerifyIdentityRequest(
+    [property: JsonPropertyName("verificationId")] string VerificationId,
+    [property: JsonPropertyName("code")] string Code);
+
+public sealed record VerifyIdentityResponse(
+    [property: JsonPropertyName("succeeded")] bool Succeeded,
+    [property: JsonPropertyName("failureReason")] string? FailureReason,
+    [property: JsonPropertyName("identityVerifiedAtUtc")] DateTimeOffset? IdentityVerifiedAtUtc);
 
 public sealed record RecipientFieldView(
     int Index,

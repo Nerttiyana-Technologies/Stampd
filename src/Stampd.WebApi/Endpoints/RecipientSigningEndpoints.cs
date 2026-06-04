@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 
 using Stampd.Core.Entities;
+using Stampd.Core.Identity;
 using Stampd.Core.Storage;
 using Stampd.WebApi.Models;
 using Stampd.WebApi.Services;
@@ -24,6 +25,14 @@ internal static class RecipientSigningEndpoints
         group.MapGet("/{accessToken}/document", DownloadSourceAsync)
             .WithName("RecipientDownloadSourceDocument")
             .WithSummary("Recipient-facing: streams the unsigned source PDF so the signer can read what they're signing. Only available while the recipient is in Invited or Viewed state.");
+
+        group.MapPost("/{accessToken}/initiate-verification", InitiateVerificationAsync)
+            .WithName("RecipientInitiateIdentityVerification")
+            .WithSummary("Recipient-facing: sends an identity-verification challenge (Email OTP). Returns the verification id and code expiry. Only valid when the recipient's role has RequiresIdentityVerification set.");
+
+        group.MapPost("/{accessToken}/verify-identity", VerifyIdentityAsync)
+            .WithName("RecipientVerifyIdentity")
+            .WithSummary("Recipient-facing: verifies the OTP code. On success, marks the recipient as identity-verified so the signing form unlocks.");
 
         return builder;
     }
@@ -150,6 +159,17 @@ internal static class RecipientSigningEndpoints
                 statusCode: 409);
         }
 
+        // Identity-verification gate. If the recipient's role requires it and they haven't
+        // completed the OTP challenge, refuse the submission. The UI gate is a usability
+        // layer; this is the security layer.
+        if (recipient.Role?.RequiresIdentityVerification == true
+            && recipient.IdentityVerifiedAtUtc is null)
+        {
+            return Results.Problem(
+                "Identity verification is required before you can sign this document.",
+                statusCode: 403);
+        }
+
         var (recipientStatus, workflowStatus, signedDocumentId, signedHash) =
             await workflow.SubmitAsync(recipient, body.FieldValues, ct).ConfigureAwait(false);
 
@@ -158,6 +178,117 @@ internal static class RecipientSigningEndpoints
             WorkflowStatus: workflowStatus,
             SignedDocumentId: signedDocumentId,
             SignedDocumentHashSha256: signedHash));
+    }
+
+    private static async Task<IResult> InitiateVerificationAsync(
+        string accessToken,
+        [FromServices] SigningWorkflowService workflow,
+        [FromServices] IIdentityVerificationProvider verificationProvider,
+        CancellationToken ct)
+    {
+        var pair = await workflow.ResolveByAccessTokenAsync(accessToken, ct).ConfigureAwait(false);
+        if (pair is null)
+        {
+            return Results.NotFound();
+        }
+
+        var (request, recipient) = pair.Value;
+
+        if (recipient.Role?.RequiresIdentityVerification != true)
+        {
+            return Results.Problem(
+                "Identity verification is not required for this recipient.",
+                statusCode: 409);
+        }
+
+        if (recipient.IdentityVerifiedAtUtc is not null)
+        {
+            return Results.Problem(
+                "You have already verified your identity for this signing request.",
+                statusCode: 409);
+        }
+
+        if (recipient.Status is RecipientStatus.Signed or RecipientStatus.Declined or RecipientStatus.Expired)
+        {
+            return Results.Problem(
+                $"This signing link is in terminal state {recipient.Status}.",
+                statusCode: 409);
+        }
+
+        if (recipient.Status == RecipientStatus.Pending)
+        {
+            return Results.Problem(
+                "It's not your turn to sign yet — earlier recipients in the routing order must finish first.",
+                statusCode: 409);
+        }
+
+        var subject = new IdentityVerificationSubject(
+            Email: recipient.Email,
+            DisplayName: recipient.Name);
+
+        var challenge = await verificationProvider.InitiateAsync(subject, ct).ConfigureAwait(false);
+
+        return Results.Ok(new InitiateVerificationResponse(
+            VerificationId: challenge.VerificationId,
+            ExpiresAtUtc: challenge.ExpiresAtUtc,
+            UserVisibleHint: challenge.UserVisibleHint));
+    }
+
+    private static async Task<IResult> VerifyIdentityAsync(
+        string accessToken,
+        [FromBody] VerifyIdentityRequest body,
+        [FromServices] SigningWorkflowService workflow,
+        [FromServices] IIdentityVerificationProvider verificationProvider,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+
+        if (string.IsNullOrWhiteSpace(body.VerificationId) || string.IsNullOrWhiteSpace(body.Code))
+        {
+            return Results.Problem("VerificationId and Code are required.", statusCode: 400);
+        }
+
+        var pair = await workflow.ResolveByAccessTokenAsync(accessToken, ct).ConfigureAwait(false);
+        if (pair is null)
+        {
+            return Results.NotFound();
+        }
+
+        var (_, recipient) = pair.Value;
+
+        if (recipient.Role?.RequiresIdentityVerification != true)
+        {
+            return Results.Problem(
+                "Identity verification is not required for this recipient.",
+                statusCode: 409);
+        }
+
+        if (recipient.IdentityVerifiedAtUtc is not null)
+        {
+            return Results.Ok(new VerifyIdentityResponse(
+                Succeeded: true,
+                FailureReason: null,
+                IdentityVerifiedAtUtc: recipient.IdentityVerifiedAtUtc));
+        }
+
+        var result = await verificationProvider.VerifyAsync(body.VerificationId, body.Code, ct).ConfigureAwait(false);
+
+        if (!result.Succeeded)
+        {
+            return Results.Ok(new VerifyIdentityResponse(
+                Succeeded: false,
+                FailureReason: result.FailureReason ?? "Verification failed.",
+                IdentityVerifiedAtUtc: null));
+        }
+
+        var verifiedAt = await workflow
+            .MarkIdentityVerifiedAsync(recipient, verificationProvider.Name, ct)
+            .ConfigureAwait(false);
+
+        return Results.Ok(new VerifyIdentityResponse(
+            Succeeded: true,
+            FailureReason: null,
+            IdentityVerifiedAtUtc: verifiedAt));
     }
 
     private static bool IsForRecipient(TemplateField field, Recipient recipient)
@@ -183,5 +314,8 @@ internal static class RecipientSigningEndpoints
             recipient.Name,
             recipient.Email,
             recipient.Status,
-            fields);
+            fields,
+            RequiresIdentityVerification: recipient.Role?.RequiresIdentityVerification == true,
+            IdentityVerifiedAtUtc: recipient.IdentityVerifiedAtUtc,
+            IdentityVerificationMethod: recipient.IdentityVerificationMethod);
 }

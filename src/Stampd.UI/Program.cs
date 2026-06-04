@@ -22,6 +22,19 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddFluentUIComponents();
 
+// Hermex: in-process SMTP capture + web dashboard. The WebApi (workflow emails, OTP
+// challenges) sends to localhost:2525 and we read everything at /hermex on this UI.
+// Only mounted in Development — production deploys should never expose a dev mailbox.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddMail4Dev(options =>
+    {
+        options.SmtpPort = builder.Configuration.GetValue("Stampd:DevMail:SmtpPort", 2525);
+        options.EnableImap = builder.Configuration.GetValue("Stampd:DevMail:EnableImap", false);
+        options.ImapPort = builder.Configuration.GetValue("Stampd:DevMail:ImapPort", 1143);
+    });
+}
+
 // HttpClient pointed at the Stampd WebApi. The recipient signing endpoints are anonymous
 // (per-token auth in the URL), so this client carries no Bearer token by default. Pages
 // that talk to authenticated endpoints (designer → /api/templates) will need a separate
@@ -43,6 +56,13 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
+
+// Mount the Hermex dashboard at /hermex (Development only). Must come before MapRazor
+// so its route segment is registered first.
+if (app.Environment.IsDevelopment())
+{
+    app.UseMail4Dev();
+}
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
