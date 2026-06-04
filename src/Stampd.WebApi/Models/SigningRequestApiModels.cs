@@ -45,7 +45,27 @@ public sealed record RecipientSigningView(
     string RecipientName,
     string RecipientEmail,
     RecipientStatus Status,
-    IReadOnlyList<RecipientFieldView> Fields);
+    IReadOnlyList<RecipientFieldView> Fields,
+    bool RequiresIdentityVerification,
+    DateTimeOffset? IdentityVerifiedAtUtc,
+    string? IdentityVerificationMethod);
+
+/// <summary>Body for <c>POST /api/sign/{accessToken}/initiate-verification</c>.</summary>
+public sealed record InitiateVerificationResponse(
+    string VerificationId,
+    DateTimeOffset ExpiresAtUtc,
+    string? UserVisibleHint);
+
+/// <summary>Body for <c>POST /api/sign/{accessToken}/verify-identity</c>.</summary>
+public sealed record VerifyIdentityRequest(
+    string VerificationId,
+    string Code);
+
+/// <summary>Response for <c>POST /api/sign/{accessToken}/verify-identity</c>.</summary>
+public sealed record VerifyIdentityResponse(
+    bool Succeeded,
+    string? FailureReason,
+    DateTimeOffset? IdentityVerifiedAtUtc);
 
 /// <summary>A single field the recipient must fill on their signing page.</summary>
 public sealed record RecipientFieldView(

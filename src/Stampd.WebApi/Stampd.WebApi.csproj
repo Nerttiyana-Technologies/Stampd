@@ -32,6 +32,8 @@
     <ProjectReference Include="..\Stampd.Storage.AzureBlob\Stampd.Storage.AzureBlob.csproj" />
     <ProjectReference Include="..\Stampd.Storage.Gcs\Stampd.Storage.Gcs.csproj" />
     <ProjectReference Include="..\Stampd.Revocation.Http\Stampd.Revocation.Http.csproj" />
+    <ProjectReference Include="..\Stampd.Email.Smtp\Stampd.Email.Smtp.csproj" />
+    <ProjectReference Include="..\Stampd.Identity.EmailOtp\Stampd.Identity.EmailOtp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

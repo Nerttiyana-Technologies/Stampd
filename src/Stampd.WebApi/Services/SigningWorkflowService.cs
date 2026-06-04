@@ -249,6 +249,31 @@ public sealed class SigningWorkflowService
     }
 
     /// <summary>
+    /// Records a successful identity-verification challenge for the recipient. Stamps
+    /// IdentityVerifiedAtUtc + IdentityVerificationMethod, writes a RecipientIdentityVerified
+    /// audit event, and persists. Idempotent — re-marks return the existing timestamp.
+    /// </summary>
+    public async Task<DateTimeOffset> MarkIdentityVerifiedAsync(
+        Recipient recipient,
+        string verificationMethod,
+        CancellationToken ct)
+    {
+        if (recipient.IdentityVerifiedAtUtc is { } already)
+        {
+            return already;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        recipient.IdentityVerifiedAtUtc = now;
+        recipient.IdentityVerificationMethod = verificationMethod;
+
+        AddAudit(recipient.SigningRequest!, AuditEventType.RecipientIdentityVerified, now, recipient);
+
+        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+        return now;
+    }
+
+    /// <summary>
     /// Records the recipient's submission. If all required recipients have now signed,
     /// finalizes the document: invokes the engine, persists the signed PDF, writes the
     /// SignedDocumentRecord, and transitions the workflow to Completed.

@@ -122,6 +122,33 @@ Adobe Acrobat opens the signed PDF with the signature panel populated, the byte 
 
 Every box is a separate project. Every diagonal arrow is an interface in `Stampd.Core` you can swap by changing one line of DI registration. Need a custom HSM? Implement `ICryptographicSealingProvider`. Custom storage? `IDocumentStorageProvider`. Custom identity verification? `IIdentityVerificationProvider`.
 
+## Email
+
+Workflow invitations and Email-OTP identity-verification codes go out through a single SMTP `IEmailSender` registered in `Stampd.WebApi`.
+
+**Development** — `Stampd.UI` mounts [Hermex](https://github.com/isureshsubramanian/hermex), an in-process SMTP server with a web dashboard, gated on `ASPNETCORE_ENVIRONMENT=Development`. Run both projects and every email lands at <http://localhost:5170/hermex>. Zero setup, no container, nothing to remember to shut down.
+
+**Test / Staging / Production** — Hermex is not registered and the `/hermex` route does not exist. Override the SMTP transport via standard configuration:
+
+```jsonc
+// appsettings.Production.json
+{
+  "Stampd": {
+    "Email": {
+      "Smtp": {
+        "Host": "email-smtp.us-east-1.amazonaws.com",
+        "Port": 587,
+        "Username": "AKIA…",
+        "Password": "…",
+        "Security": "StartTls"   // None | Auto | SslOnConnect | StartTls | StartTlsWhenAvailable
+      }
+    }
+  }
+}
+```
+
+Env-var form: `Stampd__Email__Smtp__Host`, `Stampd__Email__Smtp__Port`, etc.
+
 ## Documentation
 
 | Document | Purpose |
