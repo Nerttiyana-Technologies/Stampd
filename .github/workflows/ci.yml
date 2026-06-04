@@ -1,0 +1,36 @@
+name: CI
+
+# Build + test on every push to main and every PR. Does NOT publish anything —
+# release.yml handles publishing on `v*` tag push only.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Stampd.slnx
+
+      - name: Build (Release)
+        run: dotnet build Stampd.slnx --configuration Release --no-restore
+
+      - name: Test (Stampd.Engine.Tests)
+        run: dotnet test tests/Stampd.Engine.Tests/Stampd.Engine.Tests.csproj --configuration Release --no-build --verbosity normal
