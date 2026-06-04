@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Storage.FileSystem</PackageId>
     <Description>Filesystem-backed IDocumentStorageProvider for Stampd. Suitable for development, single-node deployments, and demos. Production setups should prefer Azure Blob or AWS S3 adapters.</Description>
+    <PackageTags>stampd;storage;document-storage;filesystem</PackageTags>
     <RootNamespace>Stampd.Storage.FileSystem</RootNamespace>
   </PropertyGroup>
 
@@ -13,6 +14,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Identity.Kba</PackageId>
     <Description>Knowledge-Based Authentication IIdentityVerificationProvider. Pluggable IKbaProvider abstraction for LexisNexis, Experian, Equifax, and similar commercial KBA backends; ships a MockKbaProvider for dev.</Description>
+    <PackageTags>stampd;identity;kba;knowledge-based-auth;identity-verification</PackageTags>
     <RootNamespace>Stampd.Identity.Kba</RootNamespace>
   </PropertyGroup>
 
@@ -13,6 +14,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Storage.AzureBlob</PackageId>
     <Description>Azure Blob Storage-backed IDocumentStorageProvider. Stores signed documents in a configured container. Auth via DefaultAzureCredential (Managed Identity / workload identity / Azure CLI / env).</Description>
+    <PackageTags>stampd;storage;azure-blob;document-storage</PackageTags>
     <RootNamespace>Stampd.Storage.AzureBlob</RootNamespace>
   </PropertyGroup>
 
@@ -14,6 +15,10 @@
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.28.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

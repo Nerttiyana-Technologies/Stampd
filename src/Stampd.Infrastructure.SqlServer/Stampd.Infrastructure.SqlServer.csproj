@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Infrastructure.SqlServer</PackageId>
     <Description>Microsoft SQL Server provider and migrations for Stampd.</Description>
+    <PackageTags>stampd;ef-core;sqlserver;mssql;persistence</PackageTags>
     <RootNamespace>Stampd.Infrastructure.SqlServer</RootNamespace>
   </PropertyGroup>
 
@@ -20,6 +21,10 @@
 
   <ItemGroup>
     <Folder Include="Migrations\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

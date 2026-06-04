@@ -23,15 +23,51 @@
   </PropertyGroup>
 
   <PropertyGroup Label="Package metadata">
+    <!--
+      Single source of truth for package version. Bump here on every release; CI publishes
+      whatever's checked in when the tag pushes. Pre-releases use a suffix, e.g.:
+        <Version>1.3.0</Version> <VersionSuffix>preview.1</VersionSuffix>
+    -->
+    <Version>1.2.0</Version>
+
     <Product>Stampd</Product>
-    <Authors>Stampd contributors</Authors>
+    <Authors>Suresh Subramanian and Stampd contributors</Authors>
     <Company>Stampd</Company>
     <Copyright>Copyright (c) Stampd contributors</Copyright>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/isureshsubramanian/Stampd</PackageProjectUrl>
     <RepositoryUrl>https://github.com/isureshsubramanian/Stampd</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+
+    <!--
+      Per-project files. Each library csproj sets PackageReadmeFile to its local README.md
+      (placed next to the csproj). Apps (Stampd.WebApi, Stampd.UI), samples, and tests
+      override IsPackable=false so they're excluded from the pack pass below.
+    -->
+    <IsPackable>true</IsPackable>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!--
+      Embed XML docs + symbols inside the package so consumers can step into Stampd code
+      from their IDE without a separate .snupkg. snupkg is the better long-term path
+      (smaller .nupkg, symbols on Microsoft's symbol server), but embedding is friction-free
+      for the 1.2 release.
+    -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
   </PropertyGroup>
+
+  <ItemGroup Label="SourceLink" Condition="'$(IsPackable)' == 'true'">
+    <!--
+      Source Link maps PDB line numbers back to the corresponding github.com blob URL, so
+      anyone consuming a Stampd package can step into source-tagged at the released SHA
+      without needing the .snupkg or a local clone.
+    -->
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
 
   <PropertyGroup Label="Deterministic builds">
     <Deterministic>true</Deterministic>

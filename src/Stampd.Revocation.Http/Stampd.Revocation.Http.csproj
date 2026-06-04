@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Revocation.Http</PackageId>
     <Description>HTTP-based OCSP and CRL fetchers for Stampd's revocation pipeline. Used to embed revocation material into PAdES B-LT signatures.</Description>
+    <PackageTags>stampd;ocsp;crl;revocation;pades-blt</PackageTags>
     <RootNamespace>Stampd.Revocation.Http</RootNamespace>
     <!--
       CA1848 / CA1873 — high-performance logging rules that demand LoggerMessage.Define
@@ -21,6 +22,10 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

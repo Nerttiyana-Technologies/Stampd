@@ -3,7 +3,12 @@
   <PropertyGroup>
     <PackageId>Stampd.Core</PackageId>
     <Description>Stampd domain types and contracts. Zero runtime dependencies.</Description>
+    <PackageTags>stampd;pdf;signature;pades;esign;esignature;digital-signature</PackageTags>
     <RootNamespace>Stampd.Core</RootNamespace>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
 </Project>
