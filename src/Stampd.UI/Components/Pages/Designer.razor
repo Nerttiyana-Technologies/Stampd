@@ -3,6 +3,7 @@
 @inject DesignerApiClient Api
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject IToastService ToastService
 @implements IAsyncDisposable
 
 <PageTitle>Designer — Stampd</PageTitle>
@@ -86,6 +87,38 @@
     private string _token = string.Empty;
     private IReadOnlyList<TemplateSummary>? _templates;
     private bool _loading;
+    private bool _toastShown;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Show the "saved" toast once per navigation. The DesignerNew page redirects
+        // here with ?saved={name} after a successful create; we pick that up, fire the
+        // confirmation, and strip the query so a refresh doesn't re-fire.
+        if (!firstRender || _toastShown) return;
+
+        try
+        {
+            var uri = new Uri(Navigation.Uri);
+            if (string.IsNullOrEmpty(uri.Query)) return;
+
+            var q = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+            if (!q.TryGetValue("saved", out var savedRaw)) return;
+
+            var savedName = savedRaw.ToString();
+            if (string.IsNullOrWhiteSpace(savedName)) return;
+
+            _toastShown = true;
+            ToastService.ShowSuccess($"Template “{savedName}” saved successfully");
+
+            // Defer the URL cleanup so it doesn't run inside the after-render callback,
+            // which can cascade into a circuit-level error in InteractiveServer.
+            await InvokeAsync(() => Navigation.NavigateTo("/designer", replace: true));
+        }
+        catch
+        {
+            // Toast is a nice-to-have. Never let it take down the page.
+        }
+    }
 
     private async Task OnTokenChanged(string token)
     {
