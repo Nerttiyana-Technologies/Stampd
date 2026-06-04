@@ -137,14 +137,11 @@ public sealed class PdfSharpStampdEngine : IStampdEngine
         using (var stampedStream = new MemoryStream(stampedPdf, writable: false))
         using (var signingDocument = PdfReader.Open(stampedStream, PdfDocumentOpenMode.Modify))
         {
-            // B-LT enrichment: write the DSS dictionary into the catalog *before* the
-            // signature handler runs. The DSS bytes get included in /ByteRange, so the
-            // signature covers them too — a stronger (though non-standard ETSI) profile.
-            // See PadesDssWriter remarks for the trade-off discussion.
-            if (revocationData is not null)
-            {
-                PadesDssWriter.Write(signingDocument, revocationData);
-            }
+            // DSS embedding is now a POST-signing concern handled by
+            // PadesIncrementalUpdateWriter — the strict-ETSI shape (DSS in an incremental
+            // update revision after the signature). The pre-signing PadesDssWriter is
+            // retained in the codebase for adopters who specifically need the v1.1
+            // "DSS-inside-byterange" shape, but is no longer wired into the default flow.
 
             var options = new DigitalSignatureOptions
             {
@@ -168,6 +165,17 @@ public sealed class PdfSharpStampdEngine : IStampdEngine
             using var signedBuffer = new MemoryStream();
             signingDocument.Save(signedBuffer, closeStream: false);
             signedPdf = signedBuffer.ToArray();
+        }
+
+        // ---- Phase 3: append B-LT DSS as a strict-ETSI incremental update ----
+        // Only runs when revocation data was gathered (target level B-LT or B-LTA AND
+        // an IRevocationProvider was configured AND it returned something). The writer
+        // appends a new PDF revision behind the existing %%EOF that adds /DSS to the
+        // catalog without modifying any signed bytes — so the signature's /ByteRange
+        // continues to validate against the original content.
+        if (revocationData is not null && !revocationData.IsEmpty)
+        {
+            signedPdf = PadesIncrementalUpdateWriter.AppendDss(signedPdf, revocationData);
         }
 
         var hashHex = Convert.ToHexString(SHA256.HashData(signedPdf)).ToLowerInvariant();
