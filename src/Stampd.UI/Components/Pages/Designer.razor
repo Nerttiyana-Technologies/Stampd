@@ -73,7 +73,11 @@
                             @t.UpdatedAtUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
                         </div>
                         <div>
-                            <code class="stampd-code">@t.Id.ToString("N")[..8]</code>
+                            <a class="stampd-btn stampd-btn--ghost"
+                               href="@($"/designer/edit/{t.Id}")"
+                               title="@($"Edit template — id {t.Id:N}")">
+                                Edit
+                            </a>
                         </div>
                     </div>
                 }
@@ -91,9 +95,10 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Show the "saved" toast once per navigation. The DesignerNew page redirects
-        // here with ?saved={name} after a successful create; we pick that up, fire the
-        // confirmation, and strip the query so a refresh doesn't re-fire.
+        // Show the "saved" / "updated" toast once per navigation. The DesignerNew page
+        // (in either /designer/new or /designer/edit/{id} mode) redirects here with
+        // ?saved={name} or ?updated={name}. We pick that up, fire the confirmation,
+        // and strip the query so a refresh doesn't re-fire.
         if (!firstRender || _toastShown) return;
 
         try
@@ -102,13 +107,24 @@
             if (string.IsNullOrEmpty(uri.Query)) return;
 
             var q = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
-            if (!q.TryGetValue("saved", out var savedRaw)) return;
 
-            var savedName = savedRaw.ToString();
-            if (string.IsNullOrWhiteSpace(savedName)) return;
+            string? name = null;
+            string verb = "saved";
+            if (q.TryGetValue("saved", out var savedRaw))
+            {
+                name = savedRaw.ToString();
+                verb = "saved";
+            }
+            else if (q.TryGetValue("updated", out var updatedRaw))
+            {
+                name = updatedRaw.ToString();
+                verb = "updated";
+            }
+
+            if (string.IsNullOrWhiteSpace(name)) return;
 
             _toastShown = true;
-            ToastService.ShowSuccess($"Template “{savedName}” saved successfully");
+            ToastService.ShowSuccess($"Template “{name}” {verb} successfully");
 
             // Defer the URL cleanup so it doesn't run inside the after-render callback,
             // which can cascade into a circuit-level error in InteractiveServer.

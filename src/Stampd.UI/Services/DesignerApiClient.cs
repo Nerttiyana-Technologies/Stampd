@@ -64,4 +64,58 @@ public sealed class DesignerApiClient
         var id = doc.TryGetProperty("id", out var idProp) ? idProp.GetGuid() : Guid.Empty;
         return (true, id, null);
     }
+
+    /// <summary>Fetches a single template's full detail (name, description, roles, fields).</summary>
+    public async Task<TemplateDetail?> GetAsync(string bearerToken, Guid id, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/templates/{id}");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        return await resp.Content
+            .ReadFromJsonAsync<TemplateDetail>(JsonOptions, ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Fetches the template's source PDF bytes (for canvas rehydration on edit).</summary>
+    public async Task<byte[]?> GetPdfAsync(string bearerToken, Guid id, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/templates/{id}/pdf");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        return await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task<(bool Success, string? Error)> UpdateAsync(
+        string bearerToken,
+        Guid id,
+        UpdateTemplateRequest body,
+        CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Put, $"/api/templates/{id}")
+        {
+            Content = JsonContent.Create(body, options: JsonOptions),
+        };
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (resp.IsSuccessStatusCode)
+        {
+            return (true, null);
+        }
+
+        var error = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        return (false, $"HTTP {(int)resp.StatusCode}: {error}");
+    }
 }

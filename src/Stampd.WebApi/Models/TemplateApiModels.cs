@@ -10,6 +10,16 @@ public sealed record CreateTemplateRequest(
     IReadOnlyList<TemplateRoleDto> Roles,
     IReadOnlyList<TemplateFieldDto> Fields);
 
+/// <summary>
+/// Request body for <c>PUT /api/templates/{id}</c>. The source PDF is locked at
+/// creation time; this payload replaces metadata, roles, and fields only.
+/// </summary>
+public sealed record UpdateTemplateRequest(
+    string Name,
+    string? Description,
+    IReadOnlyList<TemplateRoleDto> Roles,
+    IReadOnlyList<TemplateFieldDto> Fields);
+
 /// <summary>A named slot in a template (e.g. "Customer", "Approver") with routing order.</summary>
 public sealed record TemplateRoleDto(
     string Name,

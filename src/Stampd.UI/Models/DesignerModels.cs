@@ -33,6 +33,41 @@ public sealed record TemplateFieldDto(
     [property: JsonPropertyName("isRequired")] bool IsRequired = true,
     [property: JsonPropertyName("label")] string? Label = null);
 
+/// <summary>Mirror of WebApi's UpdateTemplateRequest body (PUT /api/templates/{id}).</summary>
+public sealed record UpdateTemplateRequest(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("description")] string? Description,
+    [property: JsonPropertyName("roles")] IReadOnlyList<TemplateRoleDto> Roles,
+    [property: JsonPropertyName("fields")] IReadOnlyList<TemplateFieldDto> Fields);
+
+/// <summary>Mirror of WebApi's TemplateResponse — returned by GET /api/templates/{id}.</summary>
+public sealed record TemplateDetail(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("description")] string? Description,
+    [property: JsonPropertyName("sourcePdfSha256")] string SourcePdfSha256,
+    [property: JsonPropertyName("createdAtUtc")] DateTimeOffset CreatedAtUtc,
+    [property: JsonPropertyName("updatedAtUtc")] DateTimeOffset UpdatedAtUtc,
+    [property: JsonPropertyName("isArchived")] bool IsArchived,
+    [property: JsonPropertyName("roles")] IReadOnlyList<TemplateRoleDetail> Roles,
+    [property: JsonPropertyName("fields")] IReadOnlyList<TemplateFieldDetail> Fields);
+
+public sealed record TemplateRoleDetail(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("routingOrder")] int RoutingOrder,
+    [property: JsonPropertyName("requiresIdentityVerification")] bool RequiresIdentityVerification);
+
+public sealed record TemplateFieldDetail(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("pageNumber")] int PageNumber,
+    [property: JsonPropertyName("bounds")] ApiPercentageRect Bounds,
+    [property: JsonPropertyName("kind")] string Kind,
+    [property: JsonPropertyName("assignedRoleId")] Guid? AssignedRoleId,
+    [property: JsonPropertyName("assignedRoleName")] string? AssignedRoleName,
+    [property: JsonPropertyName("isRequired")] bool IsRequired,
+    [property: JsonPropertyName("label")] string? Label);
+
 /// <summary>Working state for one designer-placed field. Index is local to the editor.</summary>
 public sealed class DesignerField
 {

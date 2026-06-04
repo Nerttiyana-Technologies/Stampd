@@ -29,6 +29,14 @@ internal static class TemplateEndpoints
             .WithName("GetTemplate")
             .WithSummary("Retrieves a template's metadata, roles, and field layout.");
 
+        group.MapGet("/{id:guid}/pdf", GetPdfAsync)
+            .WithName("GetTemplatePdf")
+            .WithSummary("Returns the template's source PDF bytes so the designer can rehydrate the canvas on edit.");
+
+        group.MapPut("/{id:guid}", UpdateAsync)
+            .WithName("UpdateTemplate")
+            .WithSummary("Updates a template's metadata, roles, and field layout. The source PDF is immutable.");
+
         group.MapPost("/{id:guid}/sign-immediate", SignImmediateAsync)
             .WithName("SignTemplateImmediate")
             .WithSummary("Apply signer-supplied values to a stored template and return the signed PDF immediately. Skips the recipient workflow.");
@@ -169,6 +177,186 @@ internal static class TemplateEndpoints
         return template is null
             ? Results.NotFound()
             : Results.Ok(ToResponse(template));
+    }
+
+    private static async Task<IResult> GetPdfAsync(
+        Guid id,
+        [FromServices] StampdDbContext db,
+        [FromServices] IDocumentStorageProvider storage,
+        CancellationToken ct)
+    {
+        var template = await db.DocumentTemplates
+            .FirstOrDefaultAsync(t => t.Id == id, ct)
+            .ConfigureAwait(false);
+
+        if (template is null)
+        {
+            return Results.NotFound();
+        }
+
+        var pdfBytes = await storage.RetrieveAsync(template.SourcePdfStorageKey, ct).ConfigureAwait(false);
+        return Results.File(pdfBytes, "application/pdf", $"template-{template.Name}.pdf");
+    }
+
+    private static async Task<IResult> UpdateAsync(
+        Guid id,
+        [FromBody] UpdateTemplateRequest body,
+        [FromServices] StampdDbContext db,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+
+        if (string.IsNullOrWhiteSpace(body.Name))
+        {
+            return Results.Problem("Template name is required.", statusCode: 400);
+        }
+
+        // Validate first: existence + archived status, without loading children. Reading
+        // through an anonymous projection keeps the change tracker clean for the
+        // ExecuteUpdate / ExecuteDelete pass below.
+        var existing = await db.DocumentTemplates
+            .AsNoTracking()
+            .Where(t => t.Id == id)
+            .Select(t => new { t.IsArchived })
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+
+        if (existing is null)
+        {
+            return Results.NotFound();
+        }
+
+        if (existing.IsArchived)
+        {
+            return Results.Problem("Archived templates cannot be edited.", statusCode: 409);
+        }
+
+        // Pre-validate the field payload before we touch the database.
+        var incomingRoleNames = new HashSet<string>(
+            body.Roles.Select(r => r.Name.Trim()),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var fieldDto in body.Fields)
+        {
+            if (!string.IsNullOrWhiteSpace(fieldDto.AssignedRoleName)
+                && !incomingRoleNames.Contains(fieldDto.AssignedRoleName.Trim()))
+            {
+                return Results.Problem(
+                    $"Field references unknown role '{fieldDto.AssignedRoleName}'.",
+                    statusCode: 400);
+            }
+        }
+
+        // Wipe child collections via raw DELETE — bypasses the change tracker entirely,
+        // which sidesteps the SetNull-cascade-on-deleted-field interaction that produced
+        // phantom optimistic-concurrency throws when this method used the change tracker.
+        //
+        // IgnoreQueryFilters is safe here: we've already tenant-validated via the parent
+        // existence check above, and every child's FK chains back to the same template.
+        // Skipping the filter avoids EF having to translate the navigation-based tenant
+        // predicate into a subquery on the DELETE.
+        await db.TemplateFields
+            .IgnoreQueryFilters()
+            .Where(f => f.DocumentTemplateId == id)
+            .ExecuteDeleteAsync(ct)
+            .ConfigureAwait(false);
+
+        await db.TemplateRecipientRoles
+            .IgnoreQueryFilters()
+            .Where(r => r.DocumentTemplateId == id)
+            .ExecuteDeleteAsync(ct)
+            .ConfigureAwait(false);
+
+        // Update scalar fields and rotate the concurrency token in a single statement.
+        // ExecuteUpdate doesn't go through the IsConcurrencyToken machinery, so we're
+        // free of the WHERE-clause-mismatch failure mode that change-tracker SaveChanges
+        // was hitting.
+        var now = DateTimeOffset.UtcNow;
+        var rowsUpdated = await db.DocumentTemplates
+            .Where(t => t.Id == id)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(t => t.Name, body.Name.Trim())
+                .SetProperty(t => t.Description, body.Description)
+                .SetProperty(t => t.UpdatedAtUtc, now)
+                .SetProperty(t => t.ConcurrencyToken, Guid.NewGuid()), ct)
+            .ConfigureAwait(false);
+
+        if (rowsUpdated == 0)
+        {
+            // Template disappeared between the existence check and the update. Rare,
+            // but possible under concurrent delete.
+            return Results.NotFound();
+        }
+
+        // Insert the new roles + fields via their own DbSets — by FK, not via the
+        // template's navigation. This guarantees the template entity itself is never
+        // attached to this DbContext on the write path, so its ConcurrencyToken can't
+        // be touched by SaveChanges. (Attaching the template and adding via navigation
+        // was causing a phantom optimistic-concurrency throw on the final batch.)
+        var rolesByName = new Dictionary<string, TemplateRecipientRole>(StringComparer.OrdinalIgnoreCase);
+        var newRoles = new List<TemplateRecipientRole>(body.Roles.Count);
+        foreach (var roleDto in body.Roles)
+        {
+            var role = new TemplateRecipientRole
+            {
+                Id = Guid.NewGuid(),
+                DocumentTemplateId = id,
+                Name = roleDto.Name.Trim(),
+                RoutingOrder = roleDto.RoutingOrder,
+                RequiresIdentityVerification = roleDto.RequiresIdentityVerification,
+            };
+            newRoles.Add(role);
+            rolesByName[role.Name] = role;
+        }
+
+        var newFields = new List<TemplateField>(body.Fields.Count);
+        foreach (var fieldDto in body.Fields)
+        {
+            Guid? assignedRoleId = null;
+            if (!string.IsNullOrWhiteSpace(fieldDto.AssignedRoleName)
+                && rolesByName.TryGetValue(fieldDto.AssignedRoleName, out var assignedRole))
+            {
+                assignedRoleId = assignedRole.Id;
+            }
+
+            newFields.Add(new TemplateField
+            {
+                Id = Guid.NewGuid(),
+                DocumentTemplateId = id,
+                AssignedRoleId = assignedRoleId,
+                PageNumber = fieldDto.PageNumber,
+                BoundsX = fieldDto.Bounds.X,
+                BoundsY = fieldDto.Bounds.Y,
+                BoundsWidth = fieldDto.Bounds.Width,
+                BoundsHeight = fieldDto.Bounds.Height,
+                Kind = fieldDto.Kind,
+                IsRequired = fieldDto.IsRequired,
+                Label = fieldDto.Label,
+                DefaultValue = fieldDto.DefaultValue,
+            });
+        }
+
+        if (newRoles.Count > 0)
+        {
+            db.TemplateRecipientRoles.AddRange(newRoles);
+        }
+        if (newFields.Count > 0)
+        {
+            db.TemplateFields.AddRange(newFields);
+        }
+
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+        // Re-fetch the freshly updated template (with its newly-attached children) for
+        // the response body. AsNoTracking because we have no further mutations to do.
+        var refreshed = await db.DocumentTemplates
+            .AsNoTracking()
+            .Include(t => t.Roles)
+            .Include(t => t.Fields)
+            .FirstAsync(t => t.Id == id, ct)
+            .ConfigureAwait(false);
+
+        return Results.Ok(ToResponse(refreshed));
     }
 
     private static async Task<IResult> SignImmediateAsync(
