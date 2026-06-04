@@ -1,18 +1,31 @@
 @page "/designer/new"
+@page "/designer/edit/{Id:guid}"
 @rendermode InteractiveServer
 @inject DesignerApiClient Api
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @implements IAsyncDisposable
 
-<PageTitle>New template — Stampd</PageTitle>
+<PageTitle>@(IsEditMode ? "Edit template" : "New template") — Stampd</PageTitle>
 
 <div class="stampd-page">
     <section class="stampd-hero">
-        <h1 class="stampd-hero-title">New template</h1>
+        <h1 class="stampd-hero-title">@HeroTitle</h1>
         <p class="stampd-hero-sub">
-            Upload a PDF, define recipient roles, then click on any page to place fields.
-            Save when you're done — the template becomes available for signing requests.
+            @if (IsEditMode)
+            {
+                <text>
+                    The source PDF is locked at creation time. You can rename, retag roles, and
+                    move/resize/add/delete fields. Save to update the template.
+                </text>
+            }
+            else
+            {
+                <text>
+                    Upload a PDF, define recipient roles, then click on any page to place fields.
+                    Save when you're done — the template becomes available for signing requests.
+                </text>
+            }
         </p>
     </section>
 
@@ -69,17 +82,34 @@
 
         <section class="stampd-card">
             <h2 class="stampd-card-title">3. PDF</h2>
-            <div style="display:flex; gap:0.75rem; align-items:center; margin-top:0.5rem; flex-wrap:wrap;">
-                <InputFile accept="application/pdf" OnChange="OnPdfPickedAsync" />
-                @if (!string.IsNullOrEmpty(_pdfFileName))
-                {
-                    <span class="stampd-chip stampd-chip--accent">@_pdfFileName</span>
-                }
+            @if (IsEditMode)
+            {
+                <p class="stampd-page-subtitle" style="margin-top:0.5rem;">
+                    The source PDF is immutable for this template.
+                    @if (!string.IsNullOrEmpty(_sourcePdfSha256))
+                    {
+                        <text>SHA-256: <code class="stampd-code">@_sourcePdfSha256[..16]…</code></text>
+                    }
+                </p>
                 @if (_loadingPdf)
                 {
-                    <span class="stampd-page-subtitle">Reading PDF…</span>
+                    <p class="stampd-page-subtitle">Loading PDF…</p>
                 }
-            </div>
+            }
+            else
+            {
+                <div style="display:flex; gap:0.75rem; align-items:center; margin-top:0.5rem; flex-wrap:wrap;">
+                    <InputFile accept="application/pdf" OnChange="OnPdfPickedAsync" />
+                    @if (!string.IsNullOrEmpty(_pdfFileName))
+                    {
+                        <span class="stampd-chip stampd-chip--accent">@_pdfFileName</span>
+                    }
+                    @if (_loadingPdf)
+                    {
+                        <span class="stampd-page-subtitle">Reading PDF…</span>
+                    }
+                </div>
+            }
             @if (_pdfError is not null)
             {
                 <div class="signer-error" style="margin-top: 0.75rem;">@_pdfError</div>
@@ -154,12 +184,15 @@
             </section>
 
             <section class="stampd-card">
-                <button class="stampd-btn stampd-btn--primary"
-                        type="button"
-                        disabled="@(!CanSave() || _saving)"
-                        @onclick="SaveAsync">
-                    @(_saving ? "Saving…" : "Save template")
-                </button>
+                <div style="display:flex; gap:0.75rem; align-items:center;">
+                    <button class="stampd-btn stampd-btn--primary"
+                            type="button"
+                            disabled="@(!CanSave() || _saving)"
+                            @onclick="SaveAsync">
+                        @(_saving ? (IsEditMode ? "Saving…" : "Saving…") : (IsEditMode ? "Save changes" : "Save template"))
+                    </button>
+                    <a class="stampd-btn stampd-btn--ghost" href="/designer">Cancel</a>
+                </div>
                 @if (_saveError is not null)
                 {
                     <div class="signer-error" style="margin-top: 0.75rem;">@_saveError</div>
@@ -170,6 +203,16 @@
 </div>
 
 @code {
+    /// <summary>Route parameter — present when the page is mounted as /designer/edit/{Id}.</summary>
+    [Parameter] public Guid? Id { get; set; }
+
+    private bool IsEditMode => Id.HasValue;
+
+    private string HeroTitle =>
+        IsEditMode
+            ? (string.IsNullOrWhiteSpace(_name) ? "Edit template" : $"Edit template — {_name}")
+            : "New template";
+
     private DesignerAuthBar? _authBar;
     private string _token = string.Empty;
 
@@ -177,6 +220,7 @@
     private string _description = string.Empty;
     private string _pdfFileName = string.Empty;
     private string _pdfBase64 = string.Empty;
+    private string? _sourcePdfSha256;
 
     private readonly List<DesignerRole> _roles = new() { new DesignerRole { Name = "Signer", RoutingOrder = 1 } };
     private readonly List<DesignerField> _fields = new();
@@ -191,6 +235,7 @@
     private string? _saveError;
     private bool _loadingPdf;
     private string? _pdfError;
+    private bool _editTemplateLoaded;
 
     private void AddRole() => _roles.Add(new DesignerRole { Name = string.Empty, RoutingOrder = _roles.Count + 1 });
 
@@ -205,7 +250,98 @@
     private async Task OnTokenChanged(string token)
     {
         _token = token;
-        await Task.CompletedTask;
+
+        // In edit mode, the very first time we get a token, hydrate the form state
+        // (name, description, roles, fields) from the server and fetch the PDF bytes
+        // so the canvas can render. Subsequent token changes (re-paste, refresh) are
+        // ignored — the user has already edited locally.
+        if (IsEditMode && !string.IsNullOrEmpty(token) && !_editTemplateLoaded && !_loadingPdf)
+        {
+            await LoadExistingTemplateAsync();
+        }
+    }
+
+    private async Task LoadExistingTemplateAsync()
+    {
+        if (Id is null) return;
+
+        _loadingPdf = true;
+        _pdfError = null;
+        StateHasChanged();
+
+        try
+        {
+            var detail = await Api.GetAsync(_token, Id.Value, CancellationToken.None);
+            if (detail is null)
+            {
+                _pdfError = $"Template {Id.Value:D} not found, or token does not have permission to read it.";
+                return;
+            }
+
+            // Hydrate metadata.
+            _name = detail.Name;
+            _description = detail.Description ?? string.Empty;
+            _sourcePdfSha256 = detail.SourcePdfSha256;
+
+            // Replace the seeded "Signer" placeholder with the actual roles.
+            _roles.Clear();
+            foreach (var r in detail.Roles.OrderBy(r => r.RoutingOrder))
+            {
+                _roles.Add(new DesignerRole
+                {
+                    Name = r.Name,
+                    RoutingOrder = r.RoutingOrder,
+                    RequiresIdentityVerification = r.RequiresIdentityVerification,
+                });
+            }
+            if (_roles.Count == 0)
+            {
+                _roles.Add(new DesignerRole { Name = "Signer", RoutingOrder = 1 });
+            }
+
+            // Hydrate fields.
+            _fields.Clear();
+            foreach (var f in detail.Fields)
+            {
+                _fields.Add(new DesignerField
+                {
+                    Index = _nextIndex++,
+                    PageNumber = f.PageNumber,
+                    X = f.Bounds.X,
+                    Y = f.Bounds.Y,
+                    Width = f.Bounds.Width,
+                    Height = f.Bounds.Height,
+                    Kind = f.Kind,
+                    AssignedRoleName = f.AssignedRoleName,
+                    IsRequired = f.IsRequired,
+                    Label = f.Label,
+                });
+            }
+
+            // Pull the PDF bytes and prime the canvas.
+            var pdfBytes = await Api.GetPdfAsync(_token, Id.Value, CancellationToken.None);
+            if (pdfBytes is null)
+            {
+                _pdfError = "Failed to fetch the template's source PDF.";
+                return;
+            }
+
+            _pdfFileName = $"template-{detail.Name}.pdf";
+            _pdfBase64 = Convert.ToBase64String(pdfBytes);
+            _editTemplateLoaded = true;
+
+            StateHasChanged();
+            await RenderCanvasAsync();
+        }
+        catch (Exception ex)
+        {
+            _pdfError = $"Load failed: {ex.Message}";
+        }
+        finally
+        {
+            _loadingPdf = false;
+            StateHasChanged();
+        }
     }
 
     private async Task OnPdfPickedAsync(InputFileChangeEventArgs e)
@@ -372,31 +508,56 @@
         _saveError = null;
         try
         {
-            var body = new CreateTemplateRequest(
-                Name: _name.Trim(),
-                Description: string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
-                SourcePdfBase64: _pdfBase64,
-                Roles: _roles.Where(r => !string.IsNullOrWhiteSpace(r.Name))
-                             .Select(r => new TemplateRoleDto(r.Name.Trim(), r.RoutingOrder, r.RequiresIdentityVerification))
-                             .ToArray(),
-                Fields: _fields.Select(f => new TemplateFieldDto(
-                    PageNumber: f.PageNumber,
-                    Bounds: new ApiPercentageRect(f.X, f.Y, f.Width, f.Height),
-                    Kind: f.Kind,
-                    AssignedRoleName: f.AssignedRoleName,
-                    IsRequired: f.IsRequired,
-                    Label: f.Label)).ToArray());
+            var validRoles = _roles.Where(r => !string.IsNullOrWhiteSpace(r.Name))
+                                   .Select(r => new TemplateRoleDto(r.Name.Trim(), r.RoutingOrder, r.RequiresIdentityVerification))
+                                   .ToArray();
 
-            var (ok, id, err) = await Api.CreateAsync(_token, body, CancellationToken.None);
-            if (!ok)
+            var fieldsDto = _fields.Select(f => new TemplateFieldDto(
+                PageNumber: f.PageNumber,
+                Bounds: new ApiPercentageRect(f.X, f.Y, f.Width, f.Height),
+                Kind: f.Kind,
+                AssignedRoleName: f.AssignedRoleName,
+                IsRequired: f.IsRequired,
+                Label: f.Label)).ToArray();
+
+            if (IsEditMode && Id is { } templateId)
             {
-                _saveError = err ?? "Save failed";
-                return;
+                var body = new UpdateTemplateRequest(
+                    Name: _name.Trim(),
+                    Description: string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+                    Roles: validRoles,
+                    Fields: fieldsDto);
+
+                var (ok, err) = await Api.UpdateAsync(_token, templateId, body, CancellationToken.None);
+                if (!ok)
+                {
+                    _saveError = err ?? "Update failed";
+                    return;
+                }
+
+                // Use ?updated= so the list page can show "Template updated" instead of "saved".
+                Navigation.NavigateTo($"/designer?updated={Uri.EscapeDataString(_name.Trim())}");
             }
-            // Pass the saved template name through the query so the list page can
-            // surface a confirmation toast. Encoded so names with spaces / specials
-            // round-trip safely.
-            Navigation.NavigateTo($"/designer?saved={Uri.EscapeDataString(_name.Trim())}");
+            else
+            {
+                var body = new CreateTemplateRequest(
+                    Name: _name.Trim(),
+                    Description: string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+                    SourcePdfBase64: _pdfBase64,
+                    Roles: validRoles,
+                    Fields: fieldsDto);
+
+                var (ok, id, err) = await Api.CreateAsync(_token, body, CancellationToken.None);
+                if (!ok)
+                {
+                    _saveError = err ?? "Save failed";
+                    return;
+                }
+                // Pass the saved template name through the query so the list page can
+                // surface a confirmation toast. Encoded so names with spaces / specials
+                // round-trip safely.
+                Navigation.NavigateTo($"/designer?saved={Uri.EscapeDataString(_name.Trim())}");
+            }
         }
         catch (Exception ex)
         {
