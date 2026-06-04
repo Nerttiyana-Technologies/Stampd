@@ -163,7 +163,7 @@ Env-var form: `Stampd__Email__Smtp__Host`, `Stampd__Email__Smtp__Port`, etc.
 | PAdES B-B (basic) | ✅ | ✅ | ✅ |
 | PAdES B-T (RFC 3161 timestamp) | ✅ | ✅ | ✅ |
 | PAdES B-LT (CRL + OCSP via DSS) | — | ✅ | ✅ |
-| PAdES B-LTA (archive timestamp) | — | — | 🚧 |
+| PAdES B-LTA (archive timestamp) | — | — | ✅ † |
 | Local certificate sealing | ✅ | ✅ | ✅ |
 | HashiCorp Vault / OpenBao Transit | ✅ | ✅ | ✅ |
 | Azure Key Vault | — | ✅ | ✅ |
@@ -179,13 +179,15 @@ Env-var form: `Stampd__Email__Smtp__Host`, `Stampd__Email__Smtp__Port`, etc.
 | Multi-recipient field aggregation | — | ✅ | ✅ |
 | Blazor signer experience | — | ✅ | ✅ |
 | Blazor template designer | — | ✅ | ✅ |
-| Identity-verification UI gates | — | — | 🚧 |
-| Drag-to-move + resize handles in designer | — | — | 🚧 |
+| Identity-verification UI gates | — | — | ✅ |
+| Drag-to-move + resize handles in designer | — | — | ✅ |
 | True PDF incremental update for strict ETSI B-LT | — | — | 🚧 |
+
+† **B-LTA caveat.** v1.2 implements B-LTA as a CMS `id-aa-ets-archiveTimestampV3` unsigned attribute (OID `1.2.840.113549.1.9.16.2.48`) carrying a second TSA assertion over the SignerInfo. This anchors the (signature + B-T timestamp + DSS-covered byte range) to a new TSA so the signature stays verifiable after the signer cert expires — which is the substantive guarantee B-LTA provides. A separate v1.3 item tracks two strict-ETSI refinements: (1) the ATSHashIndexV3 imprint computation in ETSI TS 101 733 §6.4.3, and (2) PAdES Document Timestamp (an incremental-update `/Type /DocTimeStamp` signature dictionary) as the alternative carrier ETSI EN 319 142-1 prefers for PAdES specifically.
 
 ## Roadmap
 
-**v1.2 candidates** — drag-to-move + resize in the designer, identity verification UI step (the OTP/KBA providers exist; the UI gate doesn't yet), proper incremental-update DSS for strict ETSI PAdES B-LT conformance, server-side ordering on worker columns via `long` epoch conversion, edit-existing-template flow in the designer.
+**v1.2 candidates** — drag-to-move + resize in the designer ✅, identity verification UI step ✅, B-LTA archive timestamp ✅ (CMS-attribute form; see caveat above), proper incremental-update DSS for strict ETSI PAdES B-LT conformance 🚧, server-side ordering on worker columns via `long` epoch conversion 🚧, edit-existing-template flow in the designer ✅.
 
 **v2.0 vision** — Blazor admin dashboards (signing volume, completion rates, drop-off by step), workflow rules engine (conditional fields, branching), industry-specific compliance bundles (HIPAA, 21 CFR Part 11, eIDAS QES). See `PRD.md` (gitignored) for the full v3.0 enterprise surface plan.
 

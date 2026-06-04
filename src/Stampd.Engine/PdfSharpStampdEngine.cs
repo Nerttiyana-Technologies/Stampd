@@ -121,7 +121,17 @@ public sealed class PdfSharpStampdEngine : IStampdEngine
         var effectiveTsa = request.Sealing.TargetLevel == PAdESLevel.BB
             ? null
             : _timestampAuthority;
-        var cmsBuilder = new PadesCmsBuilder(_sealingProvider, hashAlgorithm, effectiveTsa);
+        var cmsBuilder = new PadesCmsBuilder(
+            _sealingProvider,
+            hashAlgorithm,
+            effectiveTsa,
+            targetLevel: request.Sealing.TargetLevel);
+
+        // B-LTA stacks an archive timestamp on top of the B-T timestamp; both TSTs carry
+        // the TSA cert chain, so /Contents needs roughly twice the room the B-T path used.
+        var signatureSize = request.Sealing.TargetLevel == PAdESLevel.BLTA
+            ? ProviderBackedDigitalSigner.ReservedSizeBlta
+            : ProviderBackedDigitalSigner.ReservedSizeDefault;
 
         byte[] signedPdf;
         using (var stampedStream = new MemoryStream(stampedPdf, writable: false))
@@ -152,7 +162,7 @@ public sealed class PdfSharpStampdEngine : IStampdEngine
             // "document altered since signed" verdict in Adobe Acrobat.
             _ = DigitalSignatureHandler.ForDocument(
                 signingDocument,
-                new ProviderBackedDigitalSigner(cmsBuilder, certificateName: "Stampd Signer"),
+                new ProviderBackedDigitalSigner(cmsBuilder, certificateName: "Stampd Signer", reservedSize: signatureSize),
                 options);
 
             using var signedBuffer = new MemoryStream();
@@ -243,19 +253,25 @@ public sealed class PdfSharpStampdEngine : IStampdEngine
         // 32 KB comfortably accommodates an RSA-2048 CMS plus an embedded RFC 3161
         // timestamp token (which carries the TSA's own cert chain). Over-reserving is
         // harmless — PDFsharp pads /Contents with zero bytes that Adobe ignores.
-        private const int ReservedSignatureSize = 32 * 1024;
+        internal const int ReservedSizeDefault = 32 * 1024;
+
+        // B-LTA carries a second TST (the archive timestamp) embedded as a separate
+        // unsigned attribute, so /Contents needs roughly twice the room.
+        internal const int ReservedSizeBlta = 64 * 1024;
 
         private readonly PadesCmsBuilder _cmsBuilder;
+        private readonly int _reservedSize;
 
-        public ProviderBackedDigitalSigner(PadesCmsBuilder cmsBuilder, string certificateName)
+        public ProviderBackedDigitalSigner(PadesCmsBuilder cmsBuilder, string certificateName, int reservedSize = ReservedSizeDefault)
         {
             _cmsBuilder = cmsBuilder;
             CertificateName = certificateName;
+            _reservedSize = reservedSize;
         }
 
         public string CertificateName { get; }
 
-        public Task<int> GetSignatureSizeAsync() => Task.FromResult(ReservedSignatureSize);
+        public Task<int> GetSignatureSizeAsync() => Task.FromResult(_reservedSize);
 
         public Task<byte[]> GetSignatureAsync(Stream rangeStream)
         {
