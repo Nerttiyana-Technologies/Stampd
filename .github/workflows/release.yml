@@ -1,0 +1,100 @@
+name: Release
+
+# Publishes Stampd's library packages to nuget.org on every `v*` tag push.
+# The tag drives the *trigger* but NOT the package version — the version is
+# pinned in Directory.Build.props (Version=1.2.0). The workflow asserts the
+# tag matches that pinned version so a mis-tagged push doesn't silently ship
+# the wrong number.
+#
+# Required repo secret:
+#   NUGET_API_KEY — an nuget.org API key scoped to push Stampd.* (or "*").
+#
+# Manual dispatch is also enabled so you can dry-run the workflow against
+# main without tagging; in that mode only `pack` runs, no `push`.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Pack only, do not push to nuget.org'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Source Link needs full history.
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          # Stampd targets net10.0. The SDK version comes from global.json.
+          global-json-file: global.json
+
+      - name: Print SDK info
+        run: dotnet --info
+
+      - name: Restore
+        run: dotnet restore Stampd.slnx
+
+      - name: Build (Release)
+        run: dotnet build Stampd.slnx --configuration Release --no-restore
+
+      - name: Test (Stampd.Engine.Tests)
+        run: dotnet test tests/Stampd.Engine.Tests/Stampd.Engine.Tests.csproj --configuration Release --no-build --verbosity normal
+
+      # Verify the tag matches Directory.Build.props's <Version>. On a workflow_dispatch
+      # run (no tag), skip the check.
+      - name: Verify tag matches pinned version
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          PINNED=$(grep -oE '<Version>[^<]*</Version>' Directory.Build.props | head -1 | sed -E 's/<\/?Version>//g')
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "Pinned: $PINNED"
+          echo "Tag:    $TAG"
+          if [ "$PINNED" != "$TAG" ]; then
+            echo "::error::Tag v$TAG does not match Directory.Build.props <Version>$PINNED</Version>. Bump the file or re-tag."
+            exit 1
+          fi
+
+      - name: Pack
+        run: dotnet pack Stampd.slnx --configuration Release --no-build --output ./artifacts
+
+      - name: List artifacts
+        run: ls -la ./artifacts
+
+      - name: Push to nuget.org
+        if: github.event_name == 'push' || github.event.inputs.dry_run == 'false'
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "::error::NUGET_API_KEY secret is not set on this repository."
+            exit 1
+          fi
+          # --skip-duplicate so re-runs of an already-published version are idempotent.
+          dotnet nuget push './artifacts/*.nupkg' \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkg-${{ github.run_id }}
+          path: ./artifacts/*.*nupkg
+          retention-days: 30
