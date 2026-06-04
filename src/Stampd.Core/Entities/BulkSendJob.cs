@@ -27,6 +27,13 @@ public sealed class BulkSendJob
     public DateTimeOffset? StartedAtUtc { get; set; }
     public DateTimeOffset? CompletedAtUtc { get; set; }
 
+    /// <summary>
+    /// Unix epoch milliseconds copy of <see cref="CreatedAtUtc"/>. Lets BulkSendWorker
+    /// pick the oldest pending job via server-side ORDER BY instead of materializing all
+    /// candidates. Maintained on insert.
+    /// </summary>
+    public long CreatedAtUtcEpochMs { get; set; }
+
     /// <summary>Default subject applied to every dispatched SigningRequest.</summary>
     public string Subject { get; set; } = string.Empty;
 

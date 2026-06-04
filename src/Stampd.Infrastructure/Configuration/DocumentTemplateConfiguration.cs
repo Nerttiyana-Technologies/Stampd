@@ -23,9 +23,13 @@ internal sealed class DocumentTemplateConfiguration : IEntityTypeConfiguration<D
         builder.Property(t => t.UpdatedAtUtc).IsRequired();
         builder.Property(t => t.IsArchived).IsRequired();
         builder.Property(t => t.ConcurrencyToken).IsConcurrencyToken().IsRequired();
+        builder.Property(t => t.CreatedAtUtcEpochMs).IsRequired();
 
         builder.HasIndex(t => new { t.TenantId, t.Name });
         builder.HasIndex(t => new { t.TenantId, t.IsArchived });
+        // Tenant-scoped newest-first listing in GET /api/templates uses this index to
+        // ORDER BY CreatedAtUtcEpochMs DESC server-side.
+        builder.HasIndex(t => new { t.TenantId, t.CreatedAtUtcEpochMs });
 
         builder.HasMany(t => t.Roles)
             .WithOne(r => r.DocumentTemplate)

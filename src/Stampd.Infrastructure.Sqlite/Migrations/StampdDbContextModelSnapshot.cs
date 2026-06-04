@@ -92,6 +92,9 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<long>("CreatedAtUtcEpochMs")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid>("DocumentTemplateId")
                         .HasColumnType("TEXT");
 
@@ -131,6 +134,8 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
 
                     b.HasIndex("TenantId", "Status");
 
+                    b.HasIndex("Status", "CreatedAtUtcEpochMs");
+
                     b.ToTable("BulkSendJobs", (string)null);
                 });
 
@@ -146,6 +151,9 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAtUtcEpochMs")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
@@ -185,6 +193,8 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.HasIndex("TenantId", "IsArchived");
 
                     b.HasIndex("TenantId", "Name");
+
+                    b.HasIndex("TenantId", "CreatedAtUtcEpochMs");
 
                     b.ToTable("DocumentTemplates", (string)null);
                 });
@@ -482,6 +492,9 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.Property<DateTimeOffset>("NextAttemptAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<long>("NextAttemptAtUtcEpochMs")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("PayloadJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -495,6 +508,8 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("NextAttemptAtUtc");
+
+                    b.HasIndex("NextAttemptAtUtcEpochMs");
 
                     b.HasIndex("WebhookEndpointId");
 
