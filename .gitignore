@@ -547,6 +547,17 @@ mockups/
 *.sqlite-wal
 *.sqlite-journal
 
+# Un-ignore the EF Core SQLite provider project directory. On case-insensitive
+# filesystems (macOS APFS / Windows NTFS) the *.sqlite glob above matches the
+# trailing component of `src/Stampd.Infrastructure.Sqlite/` case-insensitively,
+# which would silently drop every file under it (README, csproj, migrations).
+#
+# IMPORTANT: only un-ignore the DIRECTORY itself — not its contents. Git's
+# "do not enter ignored directory" rule needs the directory to be visible
+# again, but the broad bin/ obj/ .DS_Store rules elsewhere in this .gitignore
+# should still apply to the build output inside.
+!src/Stampd.Infrastructure.Sqlite/
+
 # Hermex's in-process mail store. The folder is auto-created next to the host
 # project on first SMTP capture; checking it in would persist captured mail
 # (and its SQLite db + WAL) across machines and CI runs.
