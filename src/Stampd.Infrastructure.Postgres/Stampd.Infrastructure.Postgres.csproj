@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Infrastructure.Postgres</PackageId>
     <Description>PostgreSQL provider and migrations for Stampd.</Description>
+    <PackageTags>stampd;ef-core;postgres;postgresql;persistence</PackageTags>
     <RootNamespace>Stampd.Infrastructure.Postgres</RootNamespace>
   </PropertyGroup>
 
@@ -20,6 +21,10 @@
 
   <ItemGroup>
     <Folder Include="Migrations\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

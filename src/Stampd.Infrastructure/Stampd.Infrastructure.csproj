@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Infrastructure</PackageId>
     <Description>EF Core DbContext, entity configurations, and provider-agnostic infrastructure for Stampd.</Description>
+    <PackageTags>stampd;ef-core;efcore;persistence;multi-tenant</PackageTags>
     <RootNamespace>Stampd.Infrastructure</RootNamespace>
   </PropertyGroup>
 
@@ -19,6 +20,10 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

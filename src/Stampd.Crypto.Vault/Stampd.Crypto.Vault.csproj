@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Crypto.Vault</PackageId>
     <Description>HashiCorp Vault / OpenBao Transit-backed ICryptographicSealingProvider. The signing key stays in Vault; this provider submits data to the Transit secrets engine for remote signing. Works against both HashiCorp Vault (BUSL-1.1) and OpenBao (MPL-2.0) via their shared HTTP API.</Description>
+    <PackageTags>stampd;hashicorp-vault;openbao;hsm;transit;sealing</PackageTags>
     <RootNamespace>Stampd.Crypto.Vault</RootNamespace>
   </PropertyGroup>
 
@@ -14,6 +15,10 @@
     <PackageReference Include="VaultSharp" Version="1.17.5.1" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Storage.S3</PackageId>
     <Description>AWS S3-backed IDocumentStorageProvider. Stores signed documents in an S3 bucket. Supports SSE-S3 (default), SSE-KMS via a configured KMS key, and per-tenant key prefixes.</Description>
+    <PackageTags>stampd;storage;aws-s3;document-storage</PackageTags>
     <RootNamespace>Stampd.Storage.S3</RootNamespace>
   </PropertyGroup>
 
@@ -13,6 +14,10 @@
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" Version="4.0.24" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

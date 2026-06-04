@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Engine</PackageId>
     <Description>PdfSharp + BouncyCastle implementation of IStampdEngine. Stamps signature collateral and applies PAdES signatures.</Description>
+    <PackageTags>stampd;pdf;signature;pades;cms;bouncycastle;pdfsharp</PackageTags>
     <RootNamespace>Stampd.Engine</RootNamespace>
   </PropertyGroup>
 
@@ -34,6 +35,10 @@
       with the PRD; can be removed if unused.
     -->
     <PackageReference Include="SkiaSharp" Version="3.119.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Identity.SmsOtp</PackageId>
     <Description>SMS one-time-passcode IIdentityVerificationProvider. Pluggable ISmsGateway abstraction with adapters for Twilio and AWS SNS; ships a MockSmsGateway for dev.</Description>
+    <PackageTags>stampd;identity;otp;sms-otp;twilio;aws-sns</PackageTags>
     <RootNamespace>Stampd.Identity.SmsOtp</RootNamespace>
   </PropertyGroup>
 
@@ -13,6 +14,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

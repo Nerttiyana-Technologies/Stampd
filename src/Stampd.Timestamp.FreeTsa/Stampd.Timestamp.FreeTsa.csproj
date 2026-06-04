@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Timestamp.FreeTsa</PackageId>
     <Description>FreeTSA (freetsa.org) preset for Stampd's generic RFC 3161 timestamp authority provider. Suitable for development, demos, and self-hosted production where FreeTSA's terms of use are acceptable.</Description>
+    <PackageTags>stampd;rfc3161;tsa;timestamp;freetsa</PackageTags>
     <RootNamespace>Stampd.Timestamp.FreeTsa</RootNamespace>
   </PropertyGroup>
 
@@ -14,6 +15,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

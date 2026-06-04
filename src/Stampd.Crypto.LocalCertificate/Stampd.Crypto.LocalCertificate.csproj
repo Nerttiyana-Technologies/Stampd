@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Crypto.LocalCertificate</PackageId>
     <Description>Local X.509 certificate ICryptographicSealingProvider for Stampd. Suitable for self-hosted production where the signing certificate is stored on disk or in the OS certificate store.</Description>
+    <PackageTags>stampd;x509;certificate;sealing;pkcs12</PackageTags>
     <RootNamespace>Stampd.Crypto.LocalCertificate</RootNamespace>
   </PropertyGroup>
 
@@ -21,6 +22,10 @@
       RsaDigestSigner restores parity with the proven-working spike output.
     -->
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

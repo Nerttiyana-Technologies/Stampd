@@ -3,6 +3,7 @@
   <PropertyGroup>
     <PackageId>Stampd.Infrastructure.Sqlite</PackageId>
     <Description>SQLite provider and migrations for Stampd. Suitable for development, demos, and single-node deployments where Postgres or SQL Server would be overkill.</Description>
+    <PackageTags>stampd;ef-core;sqlite;persistence</PackageTags>
     <RootNamespace>Stampd.Infrastructure.Sqlite</RootNamespace>
   </PropertyGroup>
 
@@ -16,6 +17,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>
