@@ -237,7 +237,8 @@ if (enableRevocation)
 
 // Process-wide PAdES level. Endpoints read this via PadesDefaults so callers don't have to
 // pass it in every request body. Adopters who want B-LT set Stampd:Pades:TargetLevel="BLT"
-// and ensure Stampd:Revocation:Enabled=true.
+// (and Stampd:Revocation:Enabled=true). For B-LTA set it to "BLTA" — adds a second TSA
+// round-trip per signature for the archive timestamp.
 var padesLevel = Enum.TryParse<Stampd.Core.Entities.PAdESLevel>(
     builder.Configuration["Stampd:Pades:TargetLevel"], ignoreCase: true, out var parsedLevel)
     ? parsedLevel
