@@ -628,7 +628,7 @@ code.stampd-code {
 
 .stampd-template-row {
     display: grid;
-    grid-template-columns: 2fr 100px 100px 1fr 80px;
+    grid-template-columns: 2fr 80px 80px 140px 90px;
     align-items: center;
     gap: 0.75rem;
     padding: 0.8rem 1rem;
@@ -645,6 +645,58 @@ code.stampd-code {
     font-weight: 700;
     letter-spacing: 0.08em;
     color: var(--stampd-muted);
+}
+
+/* Designer placed-fields table — 6 columns instead of 5 (extra Pos/size column).
+   Separate class so the templates-list layout stays intact. */
+.stampd-placed-table {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--stampd-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.stampd-placed-row {
+    display: grid;
+    grid-template-columns: 48px 64px 110px 1.4fr 1.2fr 56px;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--stampd-border);
+    font-size: 0.88rem;
+}
+
+.stampd-placed-row:last-child { border-bottom: 0; }
+
+.stampd-placed-row--head {
+    background: var(--stampd-surface-alt);
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--stampd-muted);
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+}
+
+.stampd-placed-row--selected {
+    background: rgba(43, 127, 206, 0.08);
+}
+
+[data-theme="dark"] .stampd-placed-row--selected {
+    background: rgba(147, 197, 253, 0.10);
+}
+
+.stampd-placed-row .stampd-auth-input {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.85rem;
+}
+
+.stampd-placed-row .stampd-btn {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+    min-width: 36px;
 }
 
 .stampd-auth-input {
@@ -691,27 +743,140 @@ code.stampd-code {
 }
 
 .designer-overlay-layer {
+    /* Transparent to pointer events so background clicks reach the page wrapper for
+       new-field placement, BUT the .designer-field children below override this so
+       they capture their own clicks for selection / drag / resize. */
     pointer-events: none;
 }
 
+.designer-overlay-layer .designer-field,
+.designer-overlay-layer .designer-field * {
+    pointer-events: auto;
+}
+
+/* ------------------------------------------------------------
+   Placed-field overlays in the designer
+   ------------------------------------------------------------ */
 .designer-field {
     border: 2px solid var(--stampd-accent);
-    background: rgba(26, 86, 152, 0.18);
+    background: rgba(26, 86, 152, 0.16);
     color: var(--stampd-accent);
     font-size: 11px;
     font-weight: 600;
-    padding: 2px 6px;
     border-radius: 4px;
-    overflow: hidden;
+    overflow: visible;
+    box-shadow: 0 1px 3px rgba(11, 60, 110, 0.2);
+    cursor: grab !important;   /* override the page-wrapper's crosshair on hover */
+    transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 80ms ease;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.designer-field * { cursor: inherit; }
+
+.designer-field:hover {
+    background: rgba(26, 86, 152, 0.24);
+    border-color: var(--stampd-accent-deep);
+    box-shadow: 0 2px 6px rgba(11, 60, 110, 0.32);
+}
+
+.designer-field-label-inner {
+    display: block;
+    padding: 2px 6px;
     white-space: nowrap;
+    overflow: hidden;
     text-overflow: ellipsis;
-    box-shadow: 0 1px 3px rgba(11, 60, 110, 0.25);
+    pointer-events: none;
+}
+
+.designer-field--selected {
+    background: rgba(43, 127, 206, 0.22);
+    border-color: var(--stampd-accent-deep);
+    box-shadow:
+        0 0 0 3px rgba(43, 127, 206, 0.30),
+        0 4px 14px rgba(11, 60, 110, 0.30);
+    z-index: 5;
+    animation: stampd-field-pop 180ms ease-out;
+}
+
+@keyframes stampd-field-pop {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.02); }
+    100% { transform: scale(1); }
+}
+
+.designer-page--dragging .designer-field {
+    cursor: grabbing !important;
+    transition: none;
 }
 
 [data-theme="dark"] .designer-field {
-    background: rgba(147, 197, 253, 0.2);
+    background: rgba(147, 197, 253, 0.18);
     color: var(--stampd-accent-light);
     border-color: var(--stampd-accent-light);
+}
+
+[data-theme="dark"] .designer-field:hover {
+    background: rgba(147, 197, 253, 0.28);
+}
+
+[data-theme="dark"] .designer-field--selected {
+    background: rgba(147, 197, 253, 0.30);
+    border-color: #ffffff;
+    box-shadow:
+        0 0 0 3px rgba(147, 197, 253, 0.35),
+        0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+/* Resize handles — four corners, only visible when selected */
+.designer-field-handle {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #ffffff;
+    border: 2px solid var(--stampd-accent-deep);
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    z-index: 6;
+}
+
+.designer-field-handle--nw { top: -6px;    left: -6px;    cursor: nwse-resize; }
+.designer-field-handle--ne { top: -6px;    right: -6px;   cursor: nesw-resize; }
+.designer-field-handle--sw { bottom: -6px; left: -6px;    cursor: nesw-resize; }
+.designer-field-handle--se { bottom: -6px; right: -6px;   cursor: nwse-resize; }
+
+[data-theme="dark"] .designer-field-handle {
+    background: var(--stampd-accent-light);
+    border-color: #ffffff;
+}
+
+/* Delete button overlay on selected field */
+.designer-field-delete {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid #ffffff;
+    background: var(--stampd-danger);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    z-index: 7;
+    padding: 0;
+    transition: transform 120ms ease, background 120ms ease;
+}
+
+.designer-field-delete:hover {
+    transform: scale(1.15);
+    background: #d32f2f;
 }
 
 /* ============================================================

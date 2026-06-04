@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" role="img" aria-label="Stampd — Open-source PDF signing for the .NET ecosystem">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b3c6e"/>
+      <stop offset="55%" stop-color="#1a5698"/>
+      <stop offset="100%" stop-color="#2b7fce"/>
+    </linearGradient>
+
+    <radialGradient id="glow1" cx="10%" cy="0%" r="60%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="glow2" cx="110%" cy="100%" r="55%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="70%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="markBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.06"/>
+    </linearGradient>
+
+    <linearGradient id="sigLine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="20%" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="80%" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&amp;display=swap');
+      .wordmark   { font-family: 'Inter', system-ui, sans-serif; font-weight: 800; font-size: 92px; fill: #ffffff; letter-spacing: -3.5px; }
+      .tagline    { font-family: 'Inter', system-ui, sans-serif; font-weight: 500; font-size: 26px; fill: #e2ecf8; letter-spacing: -0.3px; }
+      .sublabel   { font-family: 'Inter', system-ui, sans-serif; font-weight: 700; font-size: 13px; fill: #b3cbe7; letter-spacing: 4px; text-transform: uppercase; }
+      .pill       { font-family: 'Inter', system-ui, sans-serif; font-weight: 600; font-size: 14px; fill: #ffffff; letter-spacing: 0.4px; }
+      .markGlyph  { font-family: 'Inter', system-ui, sans-serif; font-weight: 800; font-size: 60px; fill: #ffffff; letter-spacing: -2px; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="360" fill="url(#bg)"/>
+  <rect width="1280" height="360" fill="url(#glow1)"/>
+  <rect width="1280" height="360" fill="url(#glow2)"/>
+
+  <!-- Brand mark -->
+  <g transform="translate(96 96)">
+    <rect width="96" height="96" rx="20" fill="url(#markBg)" stroke="#ffffff" stroke-opacity="0.25" stroke-width="1"/>
+    <text x="48" y="68" text-anchor="middle" class="markGlyph">S</text>
+  </g>
+
+  <!-- Wordmark + tagline -->
+  <g transform="translate(232 0)">
+    <text x="0" y="142" class="sublabel">Open Source · Apache 2.0 · .NET 10</text>
+    <text x="0" y="222" class="wordmark">Stampd</text>
+    <text x="0" y="268" class="tagline">PAdES-compliant PDF signing for the .NET ecosystem</text>
+  </g>
+
+  <!-- Capability pills (bottom row) -->
+  <g transform="translate(232 296)">
+    <!-- pill 1 -->
+    <g>
+      <rect x="0"   y="0" width="138" height="32" rx="16" fill="#ffffff" fill-opacity="0.12" stroke="#ffffff" stroke-opacity="0.30"/>
+      <text x="69"  y="21" text-anchor="middle" class="pill">PAdES B-LT</text>
+    </g>
+    <!-- pill 2 -->
+    <g transform="translate(150 0)">
+      <rect x="0"   y="0" width="148" height="32" rx="16" fill="#ffffff" fill-opacity="0.12" stroke="#ffffff" stroke-opacity="0.30"/>
+      <text x="74"  y="21" text-anchor="middle" class="pill">HSM-backed</text>
+    </g>
+    <!-- pill 3 -->
+    <g transform="translate(310 0)">
+      <rect x="0"   y="0" width="172" height="32" rx="16" fill="#ffffff" fill-opacity="0.12" stroke="#ffffff" stroke-opacity="0.30"/>
+      <text x="86"  y="21" text-anchor="middle" class="pill">Multi-tenant</text>
+    </g>
+    <!-- pill 4 -->
+    <g transform="translate(494 0)">
+      <rect x="0"   y="0" width="174" height="32" rx="16" fill="#ffffff" fill-opacity="0.12" stroke="#ffffff" stroke-opacity="0.30"/>
+      <text x="87"  y="21" text-anchor="middle" class="pill">Self-hosted</text>
+    </g>
+  </g>
+
+  <!-- Signature line motif (right side, decorative) -->
+  <g transform="translate(840 130)" opacity="0.95">
+    <!-- Stamp label -->
+    <g transform="translate(0 0)">
+      <rect width="320" height="170" rx="14" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1"/>
+
+      <!-- field labels -->
+      <text x="22" y="36" class="sublabel" style="font-size:10px; letter-spacing:2px;">SIGNED BY</text>
+      <text x="22" y="60" style="font-family:'Inter',sans-serif; font-size:16px; font-weight:600; fill:#ffffff;">Alice Johnson</text>
+
+      <text x="22" y="92" class="sublabel" style="font-size:10px; letter-spacing:2px;">SIGNATURE</text>
+
+      <!-- Hand-drawn signature path -->
+      <path d="M 28 130
+               C 40 110, 56 150, 78 124
+               S 112 102, 138 132
+               S 178 110, 208 128
+               S 246 142, 286 116"
+            fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+      <line x1="22" y1="148" x2="298" y2="148" stroke="url(#sigLine)" stroke-width="1.5"/>
+    </g>
+
+    <!-- Green check badge -->
+    <g transform="translate(286 -14)">
+      <circle cx="0" cy="0" r="24" fill="#1b7a3a" stroke="#ffffff" stroke-width="2"/>
+      <path d="M -10 0 L -3 8 L 11 -8" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+</svg>

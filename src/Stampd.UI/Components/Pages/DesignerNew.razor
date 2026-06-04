@@ -113,8 +113,8 @@
                 {
                     <div style="margin-top: 1rem;">
                         <h3 style="font-size:0.74rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--stampd-muted); margin:0 0 0.5rem;">Placed fields</h3>
-                        <div class="stampd-template-table">
-                            <div class="stampd-template-row stampd-template-head">
+                        <div class="stampd-placed-table">
+                            <div class="stampd-placed-row stampd-placed-row--head">
                                 <div>#</div>
                                 <div>Page</div>
                                 <div>Kind</div>
@@ -126,12 +126,13 @@
                             {
                                 var idx = i;
                                 var f = _fields[idx];
-                                <div class="stampd-template-row">
+                                var rowClass = "stampd-placed-row" + (_selectedFieldIndex == idx ? " stampd-placed-row--selected" : "");
+                                <div class="@rowClass">
                                     <div>@(idx + 1)</div>
                                     <div>@f.PageNumber</div>
                                     <div>@f.Kind</div>
                                     <div>
-                                        <select @bind="f.AssignedRoleName" class="stampd-auth-input" style="padding:0.3rem 0.5rem;">
+                                        <select @bind="f.AssignedRoleName" class="stampd-auth-input">
                                             <option value="">(unassigned)</option>
                                             @foreach (var role in _roles.Where(r => !string.IsNullOrWhiteSpace(r.Name)))
                                             {
@@ -139,11 +140,11 @@
                                             }
                                         </select>
                                     </div>
-                                    <div style="font-family: monospace; font-size:0.8rem;">
+                                    <div style="font-family: monospace; font-size:0.78rem;">
                                         x:@f.X.ToString("0") y:@f.Y.ToString("0") w:@f.Width.ToString("0") h:@f.Height.ToString("0")
                                     </div>
                                     <div>
-                                        <button class="stampd-btn stampd-btn--ghost" type="button" @onclick="() => RemoveField(idx)">×</button>
+                                        <button class="stampd-btn stampd-btn--ghost" type="button" title="Delete field" @onclick="() => RemoveFieldFromTableAsync(idx)">×</button>
                                     </div>
                                 </div>
                             }
@@ -185,13 +186,21 @@
     private ElementReference _canvasHost;
     private IJSObjectReference? _canvas;
     private DotNetObjectReference<DesignerNew>? _selfRef;
+    private int? _selectedFieldIndex;
     private bool _saving;
     private string? _saveError;
     private bool _loadingPdf;
     private string? _pdfError;
 
     private void AddRole() => _roles.Add(new DesignerRole { Name = string.Empty, RoutingOrder = _roles.Count + 1 });
-    private void RemoveField(int idx) => _fields.RemoveAt(idx);
+
+    private async Task RemoveFieldFromTableAsync(int idx)
+    {
+        _fields.RemoveAt(idx);
+        if (_selectedFieldIndex == idx) _selectedFieldIndex = null;
+        else if (_selectedFieldIndex > idx) _selectedFieldIndex--;
+        await SyncOverlaysAsync();
+    }
 
     private async Task OnTokenChanged(string token)
     {
@@ -266,7 +275,60 @@
             kind = f.Kind,
             label = f.Label,
             assignedRoleName = f.AssignedRoleName,
-        }).ToArray());
+        }).ToArray(), _selectedFieldIndex);
+    }
+
+    [JSInvokable]
+    public async Task OnFieldSelected(int index)
+    {
+        if (index >= 0 && index < _fields.Count)
+        {
+            _selectedFieldIndex = index;
+            await InvokeAsync(StateHasChanged);
+            await SyncOverlaysAsync();
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnFieldMoved(int index, double x, double y)
+    {
+        if (index < 0 || index >= _fields.Count) return;
+        _fields[index].X = x;
+        _fields[index].Y = y;
+        _selectedFieldIndex = index;
+        await InvokeAsync(StateHasChanged);
+        await SyncOverlaysAsync();
+    }
+
+    [JSInvokable]
+    public async Task OnFieldResized(int index, double x, double y, double width, double height)
+    {
+        if (index < 0 || index >= _fields.Count) return;
+        _fields[index].X = x;
+        _fields[index].Y = y;
+        _fields[index].Width = width;
+        _fields[index].Height = height;
+        _selectedFieldIndex = index;
+        await InvokeAsync(StateHasChanged);
+        await SyncOverlaysAsync();
+    }
+
+    [JSInvokable]
+    public async Task OnFieldDeleted(int index)
+    {
+        if (index < 0 || index >= _fields.Count) return;
+        _fields.RemoveAt(index);
+        _selectedFieldIndex = null;
+        await InvokeAsync(StateHasChanged);
+        await SyncOverlaysAsync();
+    }
+
+    [JSInvokable]
+    public async Task OnSelectionCleared()
+    {
+        _selectedFieldIndex = null;
+        await InvokeAsync(StateHasChanged);
+        await SyncOverlaysAsync();
     }
 
     [JSInvokable]
@@ -293,6 +355,8 @@
             Kind = _activeKind,
             AssignedRoleName = _roles.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.Name))?.Name,
         });
+        // Auto-select the newly-placed field so the user can immediately move/resize it.
+        _selectedFieldIndex = _fields.Count - 1;
         await InvokeAsync(StateHasChanged);
         await SyncOverlaysAsync();
     }
@@ -329,7 +393,10 @@
                 _saveError = err ?? "Save failed";
                 return;
             }
-            Navigation.NavigateTo("/designer");
+            // Pass the saved template name through the query so the list page can
+            // surface a confirmation toast. Encoded so names with spaces / specials
+            // round-trip safely.
+            Navigation.NavigateTo($"/designer?saved={Uri.EscapeDataString(_name.Trim())}");
         }
         catch (Exception ex)
         {
