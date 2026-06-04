@@ -258,11 +258,18 @@ builder.Services.AddScoped<WebhookDispatcher>();
 
 // Workflow email defaults — pulled from config so adopters can flip the dispatch path
 // on by setting Stampd:Workflow:Email:SigningUrlTemplate without changing code.
+// SigningUrlTemplate default: in Development point at the local Blazor UI's signer page
+// (5170/sign/{token}), so the access URLs the API returns are clickable without any extra
+// config. Adopters override Stampd:Workflow:Email:SigningUrlTemplate for production.
+var defaultSigningUrlTemplate = builder.Environment.IsDevelopment()
+    ? "http://localhost:5170/sign/{accessToken}"
+    : null;
+
 builder.Services.AddSingleton(new WorkflowEmailOptions
 {
     FromAddress = builder.Configuration["Stampd:Workflow:Email:FromAddress"] ?? "noreply@stampd.local",
     FromDisplayName = builder.Configuration["Stampd:Workflow:Email:FromDisplayName"] ?? "Stampd",
-    SigningUrlTemplate = builder.Configuration["Stampd:Workflow:Email:SigningUrlTemplate"],
+    SigningUrlTemplate = builder.Configuration["Stampd:Workflow:Email:SigningUrlTemplate"] ?? defaultSigningUrlTemplate,
     ProductName = builder.Configuration["Stampd:Workflow:Email:ProductName"] ?? "Stampd",
 });
 
@@ -453,6 +460,8 @@ var anonGroup = app.MapGroup("").AllowAnonymous();
 anonGroup.MapHealth();
 anonGroup.MapAuth();
 anonGroup.MapRecipientSigning();
+// Demo bootstrap — registers /api/demo/seed only in Development.
+anonGroup.MapDemo(app.Environment);
 
 // Sign endpoints: rate-limited AND require auth.
 var signGroup = app.MapGroup("")

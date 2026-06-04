@@ -11,6 +11,12 @@ namespace Stampd.UI.Services;
 /// per-call because the JWT lives in the browser's sessionStorage and is passed in via
 /// JSInterop from the page — we don't persist it server-side.
 /// </summary>
+/// <remarks>
+/// In Development, callers pass <see cref="string.Empty"/> and the
+/// <c>DevAuthHttpHandler</c> registered via DI auto-injects a dev-minted JWT on every
+/// outbound call. <see cref="ApplyBearer"/> below skips the header entirely when the
+/// supplied token is empty, so the handler can take over.
+/// </remarks>
 public sealed class DesignerApiClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -23,10 +29,18 @@ public sealed class DesignerApiClient
         _http = http;
     }
 
+    private static void ApplyBearer(HttpRequestMessage req, string bearerToken)
+    {
+        if (!string.IsNullOrEmpty(bearerToken))
+        {
+            ApplyBearer(req, bearerToken);
+        }
+    }
+
     public async Task<IReadOnlyList<TemplateSummary>?> ListAsync(string bearerToken, CancellationToken ct)
     {
         using var req = new HttpRequestMessage(HttpMethod.Get, "/api/templates/");
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        ApplyBearer(req, bearerToken);
 
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode)
@@ -48,7 +62,7 @@ public sealed class DesignerApiClient
         {
             Content = JsonContent.Create(body, options: JsonOptions),
         };
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        ApplyBearer(req, bearerToken);
 
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
 
@@ -69,7 +83,7 @@ public sealed class DesignerApiClient
     public async Task<TemplateDetail?> GetAsync(string bearerToken, Guid id, CancellationToken ct)
     {
         using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/templates/{id}");
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        ApplyBearer(req, bearerToken);
 
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode)
@@ -86,7 +100,7 @@ public sealed class DesignerApiClient
     public async Task<byte[]?> GetPdfAsync(string bearerToken, Guid id, CancellationToken ct)
     {
         using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/templates/{id}/pdf");
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        ApplyBearer(req, bearerToken);
 
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode)
@@ -107,7 +121,7 @@ public sealed class DesignerApiClient
         {
             Content = JsonContent.Create(body, options: JsonOptions),
         };
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        ApplyBearer(req, bearerToken);
 
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
         if (resp.IsSuccessStatusCode)
@@ -117,5 +131,62 @@ public sealed class DesignerApiClient
 
         var error = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         return (false, $"HTTP {(int)resp.StatusCode}: {error}");
+    }
+
+    /// <summary>
+    /// Lists the most recent signing requests for the current tenant. Optionally filters
+    /// by template id. Used by the <c>/designer/requests</c> page so the sender can browse
+    /// in-flight and completed workflows and grab signed PDFs.
+    /// </summary>
+    public async Task<IReadOnlyList<SigningRequestSummary>?> ListSigningRequestsAsync(
+        string bearerToken,
+        Guid? templateId,
+        CancellationToken ct)
+    {
+        var url = templateId is null
+            ? "/api/signing-requests/"
+            : $"/api/signing-requests/?templateId={templateId.Value}";
+
+        using var req = new HttpRequestMessage(HttpMethod.Get, url);
+        ApplyBearer(req, bearerToken);
+
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        return await resp.Content
+            .ReadFromJsonAsync<List<SigningRequestSummary>>(JsonOptions, ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Creates a new signing request from a template + recipient assignment(s). Returns
+    /// the workflow-side response including each recipient's clickable AccessUrl.
+    /// </summary>
+    public async Task<(bool Success, SigningRequestResponse? Body, string? Error)>
+        CreateSigningRequestAsync(
+            string bearerToken,
+            CreateSigningRequestBody body,
+            CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/signing-requests/")
+        {
+            Content = JsonContent.Create(body, options: JsonOptions),
+        };
+        ApplyBearer(req, bearerToken);
+
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var error = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            return (false, null, $"HTTP {(int)resp.StatusCode}: {error}");
+        }
+
+        var payload = await resp.Content
+            .ReadFromJsonAsync<SigningRequestResponse>(JsonOptions, ct)
+            .ConfigureAwait(false);
+        return (true, payload, null);
     }
 }

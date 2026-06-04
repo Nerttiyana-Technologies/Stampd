@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 using Stampd.Core.Entities;
 using Stampd.Core.Identity;
 using Stampd.Core.Storage;
+using Stampd.Infrastructure;
 using Stampd.WebApi.Models;
 using Stampd.WebApi.Services;
 
@@ -33,6 +35,10 @@ internal static class RecipientSigningEndpoints
         group.MapPost("/{accessToken}/verify-identity", VerifyIdentityAsync)
             .WithName("RecipientVerifyIdentity")
             .WithSummary("Recipient-facing: verifies the OTP code. On success, marks the recipient as identity-verified so the signing form unlocks.");
+
+        group.MapGet("/{accessToken}/signed-document", DownloadSignedAsync)
+            .WithName("RecipientDownloadSignedDocument")
+            .WithSummary("Recipient-facing: streams the sealed PDF back to the signer once the document is fully signed. 409 if the workflow isn't complete yet.");
 
         return builder;
     }
@@ -178,6 +184,57 @@ internal static class RecipientSigningEndpoints
             WorkflowStatus: workflowStatus,
             SignedDocumentId: signedDocumentId,
             SignedDocumentHashSha256: signedHash));
+    }
+
+    private static async Task<IResult> DownloadSignedAsync(
+        string accessToken,
+        [FromServices] SigningWorkflowService workflow,
+        [FromServices] StampdDbContext db,
+        [FromServices] IDocumentStorageProvider storage,
+        CancellationToken ct)
+    {
+        var pair = await workflow.ResolveByAccessTokenAsync(accessToken, ct).ConfigureAwait(false);
+        if (pair is null)
+        {
+            return Results.NotFound();
+        }
+
+        var (request, recipient) = pair.Value;
+
+        // Only release the sealed PDF to the recipient once they've personally signed it.
+        if (recipient.Status != RecipientStatus.Signed)
+        {
+            return Results.Problem(
+                $"This signing link hasn't completed yet (recipient status: {recipient.Status}).",
+                statusCode: 409);
+        }
+
+        // The signed PDF only exists after the workflow service has finalized — i.e., all
+        // required recipients have signed and the engine has produced the sealed bytes.
+        // Sort newest-first client-side; SQLite can't translate ORDER BY on a DateTimeOffset
+        // column (see internal/implementation/16) and there's usually exactly one record per
+        // signing request anyway.
+        var candidates = await db.SignedDocumentRecords
+            .Where(r => r.SigningRequestId == request.Id)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var signed = candidates
+            .OrderByDescending(r => r.SignedAtUtc)
+            .FirstOrDefault();
+
+        if (signed is null)
+        {
+            return Results.Problem(
+                "You've signed, but the signing workflow is waiting on other recipients before the final sealed PDF is produced.",
+                statusCode: 409);
+        }
+
+        var bytes = await storage.RetrieveAsync(signed.StorageKey, ct).ConfigureAwait(false);
+        return Results.File(
+            fileContents: bytes,
+            contentType: "application/pdf",
+            fileDownloadName: $"signed-{signed.Id:N}.pdf");
     }
 
     private static async Task<IResult> InitiateVerificationAsync(

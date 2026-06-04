@@ -62,13 +62,15 @@ public sealed class EmailOtpProvider : IIdentityVerificationProvider
             .StoreAsync(new OtpChallenge(verificationId, Identifier: subject.Email, Code: code, ExpiresAtUtc: expiresAt), cancellationToken)
             .ConfigureAwait(false);
 
+        var expiryMinutes = (int)Math.Round(_options.ChallengeLifetime.TotalMinutes);
+
         await _emailSender.SendAsync(new EmailMessage(
             FromAddress: _options.FromAddress,
             FromDisplayName: _options.FromDisplayName,
             To: [new EmailAddress(subject.Email, subject.DisplayName)],
             Subject: $"{_options.ProductName} verification code: {code}",
-            PlainTextBody: $"Your verification code is {code}. It expires in {_options.ChallengeLifetime.TotalMinutes:F0} minutes.",
-            HtmlBody: $"<p>Your verification code is <strong>{code}</strong>.</p><p>It expires in {_options.ChallengeLifetime.TotalMinutes:F0} minutes.</p>"),
+            PlainTextBody: BuildPlainTextBody(code, expiryMinutes, subject.DisplayName, _options.ProductName),
+            HtmlBody: BuildHtmlBody(code, expiryMinutes, subject.DisplayName, _options.ProductName)),
             cancellationToken).ConfigureAwait(false);
 
         return new IdentityVerificationChallenge(
@@ -157,6 +159,108 @@ public sealed class EmailOtpProvider : IIdentityVerificationProvider
         var at = email.IndexOf('@', StringComparison.Ordinal);
         if (at <= 1) return "***";
         return $"{email[0]}***{email[at..]}";
+    }
+
+    /// <summary>
+    /// Plain-text fallback for the verification email. Always included alongside the HTML
+    /// body so clients that strip HTML still get a usable code.
+    /// </summary>
+    private static string BuildPlainTextBody(string code, int expiryMinutes, string displayName, string productName)
+    {
+        return $@"Hi {displayName},
+
+Your {productName} verification code is:
+
+  {code}
+
+This code expires in {expiryMinutes} minutes. Enter it on the signing page to verify your identity and continue.
+
+If you didn't request this code, ignore this email — your account is safe and no further action is needed.
+
+— {productName}
+This is an automated message. Do not reply.";
+    }
+
+    /// <summary>
+    /// Executive-grade HTML body. Tables-only layout for maximum mail-client compatibility
+    /// (Outlook, Apple Mail, Gmail web, mobile clients). Stampd's deep-navy → blue gradient
+    /// matches the README banner; the code is rendered in a large monospace card so it's
+    /// instantly readable on every screen size.
+    /// </summary>
+    private static string BuildHtmlBody(string code, int expiryMinutes, string displayName, string productName)
+    {
+        // Escape user-supplied text. Code is server-generated digits so no escape needed
+        // there, but displayName comes from the recipient record.
+        var safeName = System.Net.WebUtility.HtmlEncode(displayName);
+        var safeProduct = System.Net.WebUtility.HtmlEncode(productName);
+
+        return $@"<!DOCTYPE html>
+<html lang=""en"">
+<head>
+<meta charset=""utf-8""/>
+<meta name=""viewport"" content=""width=device-width,initial-scale=1""/>
+<title>{safeProduct} verification code</title>
+</head>
+<body style=""margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;"">
+  <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""background:#f1f5f9;padding:32px 16px;"">
+    <tr>
+      <td align=""center"">
+        <table role=""presentation"" width=""560"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""max-width:560px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 14px rgba(11,60,110,0.08);"">
+          <!-- Header -->
+          <tr>
+            <td style=""background:linear-gradient(135deg,#0b3c6e 0%,#1a5698 50%,#2b7fce 100%);padding:28px 36px;color:#ffffff;"">
+              <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" border=""0"">
+                <tr>
+                  <td style=""font-size:14px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;opacity:0.85;"">{safeProduct}</td>
+                  <td align=""right"" style=""font-size:12px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.7;"">Identity verification</td>
+                </tr>
+              </table>
+              <div style=""font-size:24px;font-weight:700;letter-spacing:-0.01em;margin-top:14px;"">Your verification code</div>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style=""padding:36px;"">
+              <p style=""margin:0 0 18px 0;font-size:15px;line-height:1.55;color:#334155;"">
+                Hi {safeName},
+              </p>
+              <p style=""margin:0 0 24px 0;font-size:15px;line-height:1.55;color:#334155;"">
+                Use the code below on the signing page to verify your identity and complete signing your document.
+              </p>
+
+              <!-- Code card -->
+              <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""margin:0 0 24px 0;"">
+                <tr>
+                  <td align=""center"" style=""background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:24px;"">
+                    <div style=""font-size:34px;font-weight:700;letter-spacing:0.4em;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:#0b3c6e;"">
+                      {code}
+                    </div>
+                    <div style=""margin-top:10px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;"">
+                      Expires in {expiryMinutes} minutes
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <p style=""margin:0 0 14px 0;font-size:13px;line-height:1.55;color:#64748b;"">
+                <strong style=""color:#334155;"">Security note.</strong> Treat this code like a password — {safeProduct} staff will never ask you to share it. If you didn't request a signing code, you can safely ignore this email; your account is unchanged.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style=""background:#0f172a;padding:18px 36px;color:#94a3b8;font-size:11px;line-height:1.6;text-align:center;"">
+              Sent automatically by {safeProduct}. Please do not reply to this message.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>";
     }
 }
 

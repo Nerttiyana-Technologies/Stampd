@@ -4,6 +4,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject IToastService ToastService
+@inject IHostEnvironment HostEnv
 @implements IAsyncDisposable
 
 <PageTitle>Designer — Stampd</PageTitle>
@@ -23,7 +24,10 @@
         </div>
     </section>
 
-    <DesignerAuthBar @ref="_authBar" OnTokenChanged="OnTokenChanged" />
+    @if (!AutoAuth)
+    {
+        <DesignerAuthBar @ref="_authBar" OnTokenChanged="OnTokenChanged" />
+    }
 
     <section class="stampd-card">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom: 1rem;">
@@ -35,7 +39,7 @@
         {
             <p class="stampd-page-subtitle">Loading…</p>
         }
-        else if (string.IsNullOrEmpty(_token))
+        else if (!AutoAuth && string.IsNullOrEmpty(_token))
         {
             <p class="stampd-page-subtitle">Enter a JWT bearer token above to list templates.</p>
         }
@@ -72,7 +76,12 @@
                         <div style="font-size:0.85rem; color: var(--stampd-muted);">
                             @t.UpdatedAtUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
                         </div>
-                        <div>
+                        <div style="display:flex; gap:0.4rem; justify-content:flex-end;">
+                            <a class="stampd-btn stampd-btn--primary"
+                               href="@($"/designer/send/{t.Id}")"
+                               title="Dispatch a signing request from this template">
+                                Send
+                            </a>
                             <a class="stampd-btn stampd-btn--ghost"
                                href="@($"/designer/edit/{t.Id}")"
                                title="@($"Edit template — id {t.Id:N}")">
@@ -92,6 +101,23 @@
     private IReadOnlyList<TemplateSummary>? _templates;
     private bool _loading;
     private bool _toastShown;
+
+    /// <summary>
+    /// True when the UI is in Development mode and a <c>DevAuthHttpHandler</c> is
+    /// auto-injecting the JWT for every outbound DesignerApiClient call. The auth bar is
+    /// suppressed and the page treats itself as already authenticated.
+    /// </summary>
+    private bool AutoAuth => HostEnv.IsDevelopment();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // In Development, auto-load the templates list on first render. No auth-bar
+        // dance required — the DI-registered DevAuthHttpHandler injects the JWT.
+        if (AutoAuth)
+        {
+            await LoadAsync();
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

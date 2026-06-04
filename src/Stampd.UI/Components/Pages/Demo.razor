@@ -1,0 +1,135 @@
+@page "/demo"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpFactory
+@inject IConfiguration Config
+@inject IHostEnvironment HostEnv
+@inject IJSRuntime JS
+
+<PageTitle>Demo — Stampd</PageTitle>
+
+<div class="stampd-page">
+    <section class="stampd-hero">
+        <h1 class="stampd-hero-title">Seamless demo</h1>
+        <p class="stampd-hero-sub">
+            One click — Stampd seeds a sample NDA template (if missing), dispatches a fresh
+            signing request to <strong>alice@example.com</strong>, and opens the signing
+            page in a new tab. The recipient role has identity verification on, so the OTP
+            code will land in the <a href="/hermex" target="_blank" rel="noopener">/hermex</a>
+            inbox alongside the workflow invitation.
+        </p>
+    </section>
+
+    @if (!IsDevelopment)
+    {
+        <section class="stampd-card">
+            <div class="signer-error">
+                The demo bootstrap is Development-only. Set <code>ASPNETCORE_ENVIRONMENT=Development</code>
+                on both projects to enable it.
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="stampd-card">
+            <h2 class="stampd-card-title">Run the demo</h2>
+            <p class="stampd-page-subtitle">
+                The seed is idempotent — running it again creates a fresh signing request
+                against the existing Demo NDA template.
+            </p>
+            <div style="display:flex; gap:0.75rem; align-items:center; margin-top: 1rem;">
+                <button class="stampd-btn stampd-btn--primary"
+                        type="button"
+                        disabled="@_running"
+                        @onclick="RunDemoAsync">
+                    @(_running ? "Running…" : "Try the demo end-to-end")
+                </button>
+                <a class="stampd-btn stampd-btn--ghost" href="/hermex" target="_blank" rel="noopener">Open /hermex</a>
+            </div>
+            @if (_error is not null)
+            {
+                <div class="signer-error" style="margin-top: 1rem;">@_error</div>
+            }
+        </section>
+
+        @if (_result is not null)
+        {
+            <section class="stampd-card">
+                <h2 class="stampd-card-title">Demo dispatched</h2>
+                <div class="stampd-page-subtitle" style="margin-top:0.25rem;">
+                    Recipient: <strong>@_result.RecipientName</strong> · <span style="color: var(--stampd-muted);">@_result.RecipientEmail</span>
+                </div>
+                <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin-top: 0.75rem;">
+                    <code class="stampd-code" style="word-break: break-all; flex:1;">@_result.AccessUrl</code>
+                    <a class="stampd-btn stampd-btn--primary" href="@_result.AccessUrl" target="_blank" rel="noopener">Open as Alice</a>
+                </div>
+                @if (_result.OtpRequired)
+                {
+                    <p class="stampd-page-subtitle" style="margin-top: 0.75rem;">
+                        Identity verification is on for this role. Alice will see the OTP gate
+                        on the signing page; the code arrives in <a href="/hermex" target="_blank" rel="noopener">/hermex</a>.
+                    </p>
+                }
+                <p class="stampd-page-subtitle" style="margin-top: 0.5rem;">
+                    Template: <strong>@_result.TemplateName</strong> ·
+                    Request id: <code class="stampd-code">@_result.SigningRequestId.ToString("N")[..8]</code>
+                </p>
+            </section>
+        }
+    }
+</div>
+
+@code {
+    private DemoResult? _result;
+    private bool _running;
+    private string? _error;
+
+    private bool IsDevelopment => HostEnv.IsDevelopment();
+
+    private async Task RunDemoAsync()
+    {
+        _running = true;
+        _error = null;
+        try
+        {
+            var apiBase = Config["Stampd:Api:BaseUrl"] ?? "http://localhost:5070";
+            using var http = HttpFactory.CreateClient();
+            http.BaseAddress = new Uri(apiBase);
+
+            // POST /api/demo/seed has no body. AllowAnonymous on the server side.
+            using var resp = await http.PostAsync("/api/demo/seed", content: null, CancellationToken.None);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var detail = await resp.Content.ReadAsStringAsync();
+                _error = $"Seed failed: HTTP {(int)resp.StatusCode} {detail}";
+                return;
+            }
+
+            _result = await resp.Content.ReadFromJsonAsync<DemoResult>();
+            if (_result is null)
+            {
+                _error = "Seed returned an empty response.";
+                return;
+            }
+
+            // Auto-open the access URL so the user lands on the signing page immediately.
+            await JS.InvokeVoidAsync("open", _result.AccessUrl, "_blank");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _running = false;
+        }
+    }
+
+    private sealed record DemoResult(
+        Guid TemplateId,
+        string TemplateName,
+        Guid SigningRequestId,
+        string RecipientName,
+        string RecipientEmail,
+        string AccessUrl,
+        bool OtpRequired);
+}

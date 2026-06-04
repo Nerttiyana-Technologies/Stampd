@@ -1,0 +1,183 @@
+@page "/designer/requests"
+@rendermode InteractiveServer
+@inject DesignerApiClient Api
+@inject IConfiguration Config
+@inject IHostEnvironment HostEnv
+
+<PageTitle>Signing requests — Stampd</PageTitle>
+
+<div class="stampd-page">
+    <section class="stampd-hero">
+        <h1 class="stampd-hero-title">Signing requests</h1>
+        <p class="stampd-hero-sub">
+            Workflows you've dispatched. Once every recipient signs, the signed PDF is sealed
+            and downloadable here. Newest first.
+        </p>
+    </section>
+
+    @if (!AutoAuth)
+    {
+        <DesignerAuthBar @ref="_authBar" OnTokenChanged="OnTokenChanged" />
+    }
+
+    <section class="stampd-card">
+        @if (_loading)
+        {
+            <p class="stampd-page-subtitle">Loading…</p>
+        }
+        else if (!AutoAuth && string.IsNullOrEmpty(_token))
+        {
+            <p class="stampd-page-subtitle">Enter a JWT bearer token above to list signing requests.</p>
+        }
+        else if (_requests is null)
+        {
+            <div class="signer-error">Failed to load signing requests.</div>
+        }
+        else if (_requests.Count == 0)
+        {
+            <p class="stampd-page-subtitle">
+                No signing requests yet. Open a template in the
+                <a href="/designer">designer</a> and click <strong>Send</strong> to dispatch one.
+            </p>
+        }
+        else
+        {
+            <div class="stampd-template-table">
+                <div class="stampd-request-row stampd-template-head">
+                    <div>Subject / Template</div>
+                    <div>Recipient</div>
+                    <div>Status</div>
+                    <div>Dispatched</div>
+                    <div>Signed PDF</div>
+                </div>
+                @foreach (var r in _requests)
+                {
+                    var firstRecipient = r.Recipients.FirstOrDefault();
+                    var isCompleted = string.Equals(r.Status, "Completed", StringComparison.OrdinalIgnoreCase);
+                    <div class="stampd-request-row">
+                        <div>
+                            <div style="font-weight:600;">@r.Subject</div>
+                            @if (!string.IsNullOrWhiteSpace(r.TemplateName))
+                            {
+                                <div style="font-size:0.82rem; color: var(--stampd-muted);">@r.TemplateName</div>
+                            }
+                        </div>
+                        <div style="font-size:0.86rem;">
+                            @if (firstRecipient is not null)
+                            {
+                                <div>@firstRecipient.Name</div>
+                                <div style="font-size:0.78rem; color: var(--stampd-muted);">@firstRecipient.Email</div>
+                            }
+                            @if (r.Recipients.Count > 1)
+                            {
+                                <div style="font-size:0.75rem; color: var(--stampd-muted); margin-top:2px;">
+                                    +@(r.Recipients.Count - 1) more
+                                </div>
+                            }
+                        </div>
+                        <div>
+                            <span class="stampd-chip @StatusChipClass(r.Status)">@r.Status</span>
+                        </div>
+                        <div style="font-size:0.85rem; color: var(--stampd-muted);">
+                            @r.CreatedAtUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
+                        </div>
+                        <div style="display:flex; gap:0.4rem; justify-content:flex-end;">
+                            @if (isCompleted)
+                            {
+                                <a class="stampd-btn stampd-btn--primary"
+                                   href="@SignedDocumentUrl(r.Id)"
+                                   target="_blank"
+                                   rel="noopener"
+                                   title="Open the sealed PDF in a new tab">
+                                    Open
+                                </a>
+                            }
+                            else if (firstRecipient?.AccessUrl is { } url)
+                            {
+                                <a class="stampd-btn stampd-btn--ghost"
+                                   href="@url"
+                                   target="_blank"
+                                   rel="noopener"
+                                   title="Open the recipient signing link">
+                                    Recipient link
+                                </a>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private DesignerAuthBar? _authBar;
+    private string _token = string.Empty;
+    private IReadOnlyList<SigningRequestSummary>? _requests;
+    private bool _loading;
+
+    private bool AutoAuth => HostEnv.IsDevelopment();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AutoAuth)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task OnTokenChanged(string token)
+    {
+        _token = token;
+        if (string.IsNullOrEmpty(token))
+        {
+            _requests = null;
+            return;
+        }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _requests = await Api.ListSigningRequestsAsync(_token, templateId: null, CancellationToken.None);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Composes the URL for the management download endpoint. The DevAuthHttpHandler can't
+    /// inject the JWT on an <c>&lt;a href&gt;</c>-driven navigation (no DesignerApiClient
+    /// roundtrip), so for the sender path we use the <i>recipient</i> download URL — the
+    /// per-recipient access token in the URL is the auth — and grab the first recipient's
+    /// token. Single-signer workflows (the typical demo case) have exactly one anyway.
+    /// </summary>
+    private string SignedDocumentUrl(Guid requestId)
+    {
+        var apiBase = (Config["Stampd:Api:BaseUrl"] ?? "http://localhost:5070").TrimEnd('/');
+        var request = _requests?.FirstOrDefault(r => r.Id == requestId);
+        var recipient = request?.Recipients.FirstOrDefault();
+        if (recipient?.AccessUrl is null)
+        {
+            return "#";
+        }
+
+        // recipient.AccessUrl is the UI signer page URL (per SigningUrlTemplate). The token
+        // is the last path segment. Reuse it to hit the recipient signed-document endpoint
+        // directly on the WebApi.
+        var token = recipient.AccessUrl.Split('/')[^1];
+        return $"{apiBase}/api/sign/{token}/signed-document";
+    }
+
+    private static string StatusChipClass(string status) => status switch
+    {
+        "Completed" => "stampd-chip--success",
+        "Voided" or "Declined" or "Expired" => "stampd-chip--danger",
+        _ => "stampd-chip--accent",
+    };
+}

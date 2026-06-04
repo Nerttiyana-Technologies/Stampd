@@ -36,12 +36,37 @@ if (builder.Environment.IsDevelopment())
 }
 
 // HttpClient pointed at the Stampd WebApi. The recipient signing endpoints are anonymous
-// (per-token auth in the URL), so this client carries no Bearer token by default. Pages
-// that talk to authenticated endpoints (designer → /api/templates) will need a separate
-// authenticated client wired in the next session.
+// (per-token auth in the URL), so StampdApiClient carries no Bearer token by default.
+// DesignerApiClient talks to authenticated endpoints (/api/templates etc.) — in
+// Development we auto-mint a JWT via DevTokenProvider and inject it through a
+// DelegatingHandler so the UI works with zero copy-paste. In any non-Development
+// environment the designer pages keep their auth bar and the user supplies a real token.
 var apiBaseUrl = builder.Configuration["Stampd:Api:BaseUrl"] ?? "http://localhost:5070";
 builder.Services.AddHttpClient<StampdApiClient>(client => client.BaseAddress = new Uri(apiBaseUrl));
-builder.Services.AddHttpClient<DesignerApiClient>(client => client.BaseAddress = new Uri(apiBaseUrl));
+
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddSingleton(new DevTokenOptions
+    {
+        ApiBaseUrl = apiBaseUrl,
+        Subject = builder.Configuration["Stampd:DevAuth:Subject"] ?? "designer-user",
+        TenantId = builder.Configuration["Stampd:DevAuth:TenantId"],
+    });
+    // DevTokenProvider needs its own bare HttpClient to mint the initial token, otherwise
+    // the DelegatingHandler below would call back into it recursively before the cache
+    // is populated.
+    builder.Services.AddHttpClient(nameof(DevTokenProvider));
+    builder.Services.AddSingleton<DevTokenProvider>();
+    builder.Services.AddTransient<DevAuthHttpHandler>();
+
+    builder.Services
+        .AddHttpClient<DesignerApiClient>(client => client.BaseAddress = new Uri(apiBaseUrl))
+        .AddHttpMessageHandler<DevAuthHttpHandler>();
+}
+else
+{
+    builder.Services.AddHttpClient<DesignerApiClient>(client => client.BaseAddress = new Uri(apiBaseUrl));
+}
 
 var app = builder.Build();
 
