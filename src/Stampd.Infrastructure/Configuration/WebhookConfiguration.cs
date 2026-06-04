@@ -31,9 +31,14 @@ internal sealed class WebhookDeliveryConfiguration : IEntityTypeConfiguration<We
         builder.Property(d => d.EventType).IsRequired().HasConversion<int>();
         builder.Property(d => d.PayloadJson).IsRequired();
         builder.Property(d => d.LastErrorMessage).HasMaxLength(2048);
+        builder.Property(d => d.NextAttemptAtUtcEpochMs).IsRequired();
 
         builder.HasIndex(d => d.NextAttemptAtUtc);
         builder.HasIndex(d => d.WebhookEndpointId);
+        // WebhookDeliveryWorker.DrainBatchAsync filters AND orders on this column.
+        // SQLite's TEXT-stored DateTimeOffset can't translate that pair reliably; the
+        // epoch-ms shadow does.
+        builder.HasIndex(d => d.NextAttemptAtUtcEpochMs);
 
         builder.HasOne(d => d.WebhookEndpoint)
             .WithMany()

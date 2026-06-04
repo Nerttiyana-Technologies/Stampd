@@ -84,6 +84,14 @@ public sealed class WebhookDelivery
     public DateTimeOffset NextAttemptAtUtc { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
 
+    /// <summary>
+    /// Unix epoch milliseconds copy of <see cref="NextAttemptAtUtc"/>. The webhook
+    /// delivery worker filters AND orders on this column so SQLite can translate the
+    /// query to a real WHERE/ORDER BY (TEXT-stored DateTimeOffset comparisons aren't
+    /// reliable across offsets). Maintained on insert and on every retry reschedule.
+    /// </summary>
+    public long NextAttemptAtUtcEpochMs { get; set; }
+
     public string? LastErrorMessage { get; set; }
     public int? LastResponseStatus { get; set; }
 }

@@ -142,11 +142,12 @@ internal static class TemplateEndpoints
         [FromServices] StampdDbContext db,
         CancellationToken ct)
     {
-        // SQLite cannot translate ORDER BY on DateTimeOffset columns (text-sort is
-        // ambiguous across offsets). Materialize the projection, then sort client-side.
-        // Template counts are tenant-bounded so the result set is tiny.
+        // Sort by the long epoch-ms shadow column so SQLite (which can't translate
+        // ORDER BY on TEXT-stored DateTimeOffset reliably) does the work server-side.
+        // Index: (TenantId, CreatedAtUtcEpochMs) — see DocumentTemplateConfiguration.
         var items = await db.DocumentTemplates
             .Where(t => !t.IsArchived)
+            .OrderByDescending(t => t.CreatedAtUtcEpochMs)
             .Select(t => new
             {
                 id = t.Id,
@@ -160,7 +161,7 @@ internal static class TemplateEndpoints
             .ToListAsync(ct)
             .ConfigureAwait(false);
 
-        return Results.Ok(items.OrderByDescending(t => t.createdAtUtc));
+        return Results.Ok(items);
     }
 
     private static async Task<IResult> GetAsync(

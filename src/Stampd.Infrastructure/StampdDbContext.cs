@@ -131,6 +131,8 @@ public class StampdDbContext : DbContext
                         }
 
                         template.TenantId = EnsureTenant(template.TenantId, currentTenant, crossTenantAllowed);
+                        // CreatedAtUtc is immutable, so the epoch shadow is only stamped here.
+                        template.CreatedAtUtcEpochMs = template.CreatedAtUtc.ToUnixTimeMilliseconds();
                     }
 
                     template.UpdatedAtUtc = now;
@@ -199,6 +201,7 @@ public class StampdDbContext : DbContext
                         }
 
                         job.TenantId = EnsureTenant(job.TenantId, currentTenant, crossTenantAllowed);
+                        job.CreatedAtUtcEpochMs = job.CreatedAtUtc.ToUnixTimeMilliseconds();
                     }
 
                     break;
@@ -236,6 +239,10 @@ public class StampdDbContext : DbContext
 
                         delivery.TenantId = EnsureTenant(delivery.TenantId, currentTenant, crossTenantAllowed);
                     }
+
+                    // NextAttemptAtUtc changes on every retry reschedule, so keep the
+                    // epoch shadow in sync on both Added and Modified.
+                    delivery.NextAttemptAtUtcEpochMs = delivery.NextAttemptAtUtc.ToUnixTimeMilliseconds();
 
                     break;
 

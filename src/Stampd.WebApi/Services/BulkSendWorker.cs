@@ -155,20 +155,16 @@ internal sealed class BulkSendWorker : BackgroundService
             await using var scope = _scopeFactory.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<StampdDbContext>();
 
-            // SQLite can't translate ORDER BY on DateTimeOffset columns (text-sort is
-            // ambiguous across offsets). We materialize the small candidate set and order
-            // client-side. Pending+InProgress jobs are bounded by replica count × 1 (we
-            // only ever run one at a time), so the set is tiny.
-            var candidates = await db.BulkSendJobs
+            // Sort by the long epoch-ms shadow column so SQLite (which can't translate
+            // ORDER BY on TEXT-stored DateTimeOffset reliably) does the work server-side.
+            // Index: (Status, CreatedAtUtcEpochMs) — see BulkSendJobConfiguration.
+            var candidate = await db.BulkSendJobs
                 .IgnoreQueryFilters()
                 .Where(j => j.Status == BulkSendJobStatus.Pending || j.Status == BulkSendJobStatus.InProgress)
-                .Select(j => new { j.Id, j.TenantId, j.CreatedAtUtc })
-                .ToListAsync(ct)
+                .OrderBy(j => j.CreatedAtUtcEpochMs)
+                .Select(j => new { j.Id, j.TenantId })
+                .FirstOrDefaultAsync(ct)
                 .ConfigureAwait(false);
-
-            var candidate = candidates
-                .OrderBy(c => c.CreatedAtUtc)
-                .FirstOrDefault();
 
             return candidate is null ? null : (candidate.Id, candidate.TenantId);
         }

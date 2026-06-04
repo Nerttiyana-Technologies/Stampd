@@ -34,6 +34,14 @@ public sealed class DocumentTemplate
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
 
+    /// <summary>
+    /// Unix epoch milliseconds copy of <see cref="CreatedAtUtc"/>. Stored alongside the
+    /// DateTimeOffset so SQLite (which can't translate ORDER BY on TEXT-stored
+    /// DateTimeOffset reliably) can sort newest-first server-side. Maintained by
+    /// <c>StampdDbContext.UpdateAuditableFields</c> on insert.
+    /// </summary>
+    public long CreatedAtUtcEpochMs { get; set; }
+
     /// <summary>Soft-archive flag; archived templates remain queryable but cannot be sent.</summary>
     public bool IsArchived { get; set; }
 

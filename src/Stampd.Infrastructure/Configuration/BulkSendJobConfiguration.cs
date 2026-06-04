@@ -17,7 +17,11 @@ internal sealed class BulkSendJobConfiguration : IEntityTypeConfiguration<BulkSe
         builder.Property(j => j.Message).HasMaxLength(4096);
         builder.Property(j => j.PendingRowsJson).IsRequired();
         builder.Property(j => j.FailedRowsJson).IsRequired();
+        builder.Property(j => j.CreatedAtUtcEpochMs).IsRequired();
 
         builder.HasIndex(j => new { j.TenantId, j.Status });
+        // BulkSendWorker.FindNextJobAsync uses (Status, CreatedAtUtcEpochMs) to pick the
+        // oldest pending job in O(log n) via this composite index.
+        builder.HasIndex(j => new { j.Status, j.CreatedAtUtcEpochMs });
     }
 }
