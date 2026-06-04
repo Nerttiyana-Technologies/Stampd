@@ -4,6 +4,7 @@
 @inject DesignerApiClient Api
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject IHostEnvironment HostEnv
 @implements IAsyncDisposable
 
 <PageTitle>@(IsEditMode ? "Edit template" : "New template") — Stampd</PageTitle>
@@ -29,9 +30,12 @@
         </p>
     </section>
 
-    <DesignerAuthBar @ref="_authBar" OnTokenChanged="OnTokenChanged" />
+    @if (!AutoAuth)
+    {
+        <DesignerAuthBar @ref="_authBar" OnTokenChanged="OnTokenChanged" />
+    }
 
-    @if (string.IsNullOrEmpty(_token))
+    @if (!AutoAuth && string.IsNullOrEmpty(_token))
     {
         <section class="stampd-card">
             <p class="stampd-page-subtitle">Provide a JWT bearer token above to save templates.</p>
@@ -208,6 +212,14 @@
 
     private bool IsEditMode => Id.HasValue;
 
+    /// <summary>
+    /// True when the UI is in Development and a <c>DevAuthHttpHandler</c> injects the JWT
+    /// for every outbound DesignerApiClient call. The auth bar is suppressed; in edit
+    /// mode the existing-template load fires from <see cref="OnInitializedAsync"/>
+    /// instead of waiting for an auth-bar token-change event.
+    /// </summary>
+    private bool AutoAuth => HostEnv.IsDevelopment();
+
     private string HeroTitle =>
         IsEditMode
             ? (string.IsNullOrWhiteSpace(_name) ? "Edit template" : $"Edit template — {_name}")
@@ -245,6 +257,17 @@
         if (_selectedFieldIndex == idx) _selectedFieldIndex = null;
         else if (_selectedFieldIndex > idx) _selectedFieldIndex--;
         await SyncOverlaysAsync();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // In Development, the auth bar is suppressed and DesignerApiClient calls go out
+        // with a handler-injected JWT, so OnTokenChanged never fires. Trigger the
+        // edit-template hydrate here instead.
+        if (AutoAuth && IsEditMode && !_editTemplateLoaded && !_loadingPdf)
+        {
+            await LoadExistingTemplateAsync();
+        }
     }
 
     private async Task OnTokenChanged(string token)

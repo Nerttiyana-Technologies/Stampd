@@ -1,0 +1,242 @@
+@page "/designer/send/{TemplateId:guid}"
+@rendermode InteractiveServer
+@inject DesignerApiClient Api
+@inject NavigationManager Navigation
+@inject IHostEnvironment HostEnv
+@inject IToastService ToastService
+
+<PageTitle>Send for signature — Stampd</PageTitle>
+
+<div class="stampd-page">
+    <section class="stampd-hero">
+        <h1 class="stampd-hero-title">Send for signature</h1>
+        <p class="stampd-hero-sub">
+            Pick a role on the template, add a recipient's name and email, then click Send.
+            The recipient gets a one-click signing link — no terminal commands, no copy-paste.
+        </p>
+    </section>
+
+    @if (!AutoAuth)
+    {
+        <DesignerAuthBar @ref="_authBar" OnTokenChanged="OnTokenChanged" />
+    }
+
+    @if (_loading)
+    {
+        <section class="stampd-card">
+            <p class="stampd-page-subtitle">Loading template…</p>
+        </section>
+    }
+    else if (_template is null)
+    {
+        <section class="stampd-card">
+            <div class="signer-error">
+                Couldn't load template @TemplateId. It may have been archived or deleted.
+            </div>
+        </section>
+    }
+    else if (_response is not null)
+    {
+        <section class="stampd-card">
+            <h2 class="stampd-card-title">Signing request dispatched</h2>
+            <p class="stampd-page-subtitle">
+                Status: <span class="stampd-chip stampd-chip--accent">@_response.Status</span> ·
+                Request id: <code class="stampd-code">@_response.Id.ToString("N")[..8]</code>
+            </p>
+
+            <h3 style="font-size:0.74rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--stampd-muted); margin-top:1.25rem;">Recipient links</h3>
+            <div style="display:flex; flex-direction:column; gap:0.6rem; margin-top: 0.5rem;">
+                @foreach (var r in _response.Recipients)
+                {
+                    <div style="display:flex; flex-direction:column; gap:0.3rem; padding:0.85rem 1rem; background: var(--stampd-surface-alt); border-radius:10px; border:1px solid var(--stampd-border);">
+                        <div>
+                            <strong>@r.Name</strong> · <span style="color: var(--stampd-muted);">@r.Email</span>
+                            @if (!string.IsNullOrWhiteSpace(r.RoleName))
+                            {
+                                <span class="stampd-chip" style="margin-left:0.5rem;">@r.RoleName</span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(r.AccessUrl))
+                        {
+                            <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                                <code class="stampd-code" style="word-break: break-all; flex:1;">@r.AccessUrl</code>
+                                <a class="stampd-btn stampd-btn--primary" href="@r.AccessUrl" target="_blank" rel="noopener">Open as recipient</a>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div style="display:flex; gap:0.75rem; margin-top:1.25rem;">
+                <a class="stampd-btn stampd-btn--ghost" href="/designer">Back to templates</a>
+                <button class="stampd-btn stampd-btn--ghost" type="button" @onclick="ResetForm">Send another</button>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="stampd-card">
+            <h2 class="stampd-card-title">Template</h2>
+            <div class="stampd-page-subtitle">
+                <strong>@_template.Name</strong>
+                @if (!string.IsNullOrWhiteSpace(_template.Description))
+                {
+                    <text> · @_template.Description</text>
+                }
+            </div>
+        </section>
+
+        <section class="stampd-card">
+            <h2 class="stampd-card-title">Recipient</h2>
+            <div style="display:grid; grid-template-columns: 1fr 2fr; gap: 0.6rem 1rem; align-items: center; margin-top: 0.75rem;">
+                <label class="signer-field-label">Name</label>
+                <input class="stampd-auth-input" @bind="_recipientName" placeholder="Alice Example" />
+
+                <label class="signer-field-label">Email</label>
+                <input class="stampd-auth-input" type="email" @bind="_recipientEmail" placeholder="alice@example.com" />
+
+                <label class="signer-field-label">Role</label>
+                <select class="stampd-auth-input" @bind="_selectedRoleName">
+                    @foreach (var role in _template.Roles.OrderBy(r => r.RoutingOrder))
+                    {
+                        <option value="@role.Name">@role.Name@(role.RequiresIdentityVerification ? " — requires identity verification" : "")</option>
+                    }
+                </select>
+
+                <label class="signer-field-label">Subject</label>
+                <input class="stampd-auth-input" @bind="_subject" placeholder="Please sign — @_template.Name" />
+
+                <label class="signer-field-label">Message</label>
+                <textarea class="stampd-auth-input" @bind="_message" rows="3" placeholder="Optional note shown on the signing page."></textarea>
+            </div>
+        </section>
+
+        <section class="stampd-card">
+            <div style="display:flex; gap:0.75rem; align-items:center;">
+                <button class="stampd-btn stampd-btn--primary"
+                        type="button"
+                        disabled="@(!CanSend() || _sending)"
+                        @onclick="SendAsync">
+                    @(_sending ? "Sending…" : "Send for signature")
+                </button>
+                <a class="stampd-btn stampd-btn--ghost" href="/designer">Cancel</a>
+            </div>
+            @if (_sendError is not null)
+            {
+                <div class="signer-error" style="margin-top: 0.75rem;">@_sendError</div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid TemplateId { get; set; }
+
+    private DesignerAuthBar? _authBar;
+    private string _token = string.Empty;
+    private TemplateDetail? _template;
+    private SigningRequestResponse? _response;
+
+    private string _recipientName = string.Empty;
+    private string _recipientEmail = string.Empty;
+    private string? _selectedRoleName;
+    private string _subject = string.Empty;
+    private string _message = string.Empty;
+
+    private bool _loading = true;
+    private bool _sending;
+    private string? _sendError;
+
+    private bool AutoAuth => HostEnv.IsDevelopment();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AutoAuth)
+        {
+            await LoadTemplateAsync();
+        }
+    }
+
+    private async Task OnTokenChanged(string token)
+    {
+        _token = token;
+        if (!string.IsNullOrEmpty(token))
+        {
+            await LoadTemplateAsync();
+        }
+    }
+
+    private async Task LoadTemplateAsync()
+    {
+        _loading = true;
+        try
+        {
+            _template = await Api.GetAsync(_token, TemplateId, CancellationToken.None);
+            if (_template is not null)
+            {
+                _selectedRoleName = _template.Roles.OrderBy(r => r.RoutingOrder).FirstOrDefault()?.Name;
+                _subject = $"Please sign — {_template.Name}";
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private bool CanSend()
+        => _template is not null
+        && !string.IsNullOrWhiteSpace(_recipientName)
+        && !string.IsNullOrWhiteSpace(_recipientEmail)
+        && !string.IsNullOrWhiteSpace(_selectedRoleName)
+        && !string.IsNullOrWhiteSpace(_subject);
+
+    private async Task SendAsync()
+    {
+        if (!CanSend() || _template is null) return;
+
+        _sending = true;
+        _sendError = null;
+        try
+        {
+            var body = new CreateSigningRequestBody(
+                DocumentTemplateId: TemplateId,
+                Subject: _subject.Trim(),
+                Message: string.IsNullOrWhiteSpace(_message) ? null : _message.Trim(),
+                ExpiresAtUtc: null,
+                Recipients:
+                [
+                    new RecipientAssignmentDto(
+                        RoleName: _selectedRoleName!.Trim(),
+                        Email: _recipientEmail.Trim(),
+                        Name: _recipientName.Trim()),
+                ]);
+
+            var (ok, response, err) = await Api.CreateSigningRequestAsync(_token, body, CancellationToken.None);
+            if (!ok || response is null)
+            {
+                _sendError = err ?? "Failed to dispatch signing request.";
+                return;
+            }
+
+            _response = response;
+            ToastService.ShowSuccess($"Signing request dispatched to {_recipientEmail}");
+        }
+        catch (Exception ex)
+        {
+            _sendError = ex.Message;
+        }
+        finally
+        {
+            _sending = false;
+        }
+    }
+
+    private void ResetForm()
+    {
+        _response = null;
+        _sendError = null;
+        _recipientName = string.Empty;
+        _recipientEmail = string.Empty;
+    }
+}

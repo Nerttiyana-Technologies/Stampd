@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@inject IHostEnvironment HostEnv
 
 <div class="stampd-app">
     <header class="stampd-topbar">
@@ -8,6 +9,16 @@
                 <span class="stampd-brand-title">Stampd</span>
                 <span class="stampd-brand-sub">Signing Experience</span>
             </div>
+
+            <nav class="stampd-topbar-nav">
+                <a href="/designer">Designer</a>
+                <a href="/designer/requests">Requests</a>
+                @if (HostEnv.IsDevelopment())
+                {
+                    <a href="/demo">Demo</a>
+                    <a href="/hermex" target="_blank" rel="noopener" title="Dev SMTP capture">Hermex</a>
+                }
+            </nav>
 
             <div class="stampd-nav-spacer"></div>
 

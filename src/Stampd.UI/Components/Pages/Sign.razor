@@ -3,6 +3,7 @@
 @inject StampdApiClient Api
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject IConfiguration Config
 @implements IAsyncDisposable
 
 <PageTitle>Sign — Stampd</PageTitle>
@@ -47,6 +48,27 @@ else if (_submitted is not null)
 
         @if (_submitted.SignedDocumentId is not null)
         {
+            <section class="stampd-card" style="margin-top: 1.25rem;">
+                <h2 class="stampd-card-title">Your signed document</h2>
+                <p class="stampd-page-subtitle" style="margin-top: 0.25rem;">
+                    The PDF has been sealed with your signature. Adobe Acrobat will show a verified
+                    signature panel and a green check after you trust the signing certificate once.
+                </p>
+                <div style="display:flex; gap:0.75rem; align-items:center; margin-top: 1rem; flex-wrap: wrap;">
+                    <a class="stampd-btn stampd-btn--primary"
+                       href="@SignedDocumentUrl"
+                       target="_blank"
+                       rel="noopener">
+                        Open signed PDF
+                    </a>
+                    <a class="stampd-btn stampd-btn--ghost"
+                       href="@SignedDocumentUrl"
+                       download="@($"signed-{_submitted.SignedDocumentId:N}.pdf")">
+                        Download
+                    </a>
+                </div>
+            </section>
+
             <section class="signed-summary">
                 <div class="stampd-kpi">
                     <div class="stampd-kpi-label">Document id</div>
@@ -62,6 +84,15 @@ else if (_submitted is not null)
                         The sender receives a completion notification. You can close this window safely.
                     </div>
                 </div>
+            </section>
+        }
+        else
+        {
+            <section class="stampd-card" style="margin-top: 1.25rem;">
+                <p class="stampd-page-subtitle">
+                    Your signature is recorded. The final sealed PDF will be produced once the
+                    remaining recipients sign.
+                </p>
             </section>
         }
     </div>
@@ -249,6 +280,21 @@ else
         => _view is not null
         && _view.RequiresIdentityVerification
         && _view.IdentityVerifiedAtUtc is null;
+
+    /// <summary>
+    /// URL the "Open signed PDF" / "Download" buttons point at. Routes through the
+    /// WebApi's recipient endpoint (no JWT required — the per-recipient access token in
+    /// the URL is the auth), so the signer can grab their own sealed PDF straight from
+    /// the success page.
+    /// </summary>
+    private string SignedDocumentUrl
+    {
+        get
+        {
+            var apiBase = (Config["Stampd:Api:BaseUrl"] ?? "http://localhost:5070").TrimEnd('/');
+            return $"{apiBase}/api/sign/{AccessToken}/signed-document";
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
