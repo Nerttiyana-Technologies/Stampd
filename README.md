@@ -8,7 +8,7 @@
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-1a5698?style=flat-square&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![PAdES B-LT](https://img.shields.io/badge/PAdES-B--LT-2b7fce?style=flat-square)](https://en.wikipedia.org/wiki/PAdES)
 [![Adobe Verified](https://img.shields.io/badge/Adobe%20Acrobat-verified%20signature-1b7a3a?style=flat-square&logo=adobe&logoColor=white)](#)
-[![Status: v1.1](https://img.shields.io/badge/status-v1.1-1a5698?style=flat-square)](#release-history)
+[![Status: v1.2](https://img.shields.io/badge/status-v1.2-1a5698?style=flat-square)](#release-history)
 
 **An executive-grade, open-source e-signature platform built natively for .NET.**
 
@@ -158,7 +158,7 @@ Env-var form: `Stampd__Email__Smtp__Host`, `Stampd__Email__Smtp__Port`, etc.
 
 ## Feature matrix
 
-| Capability | v1.0 | v1.1 (current) | v1.2 (next) |
+| Capability | v1.0 | v1.1 | v1.2 (current) |
 |---|---|---|---|
 | PAdES B-B (basic) | ✅ | ✅ | ✅ |
 | PAdES B-T (RFC 3161 timestamp) | ✅ | ✅ | ✅ |
@@ -189,11 +189,12 @@ Env-var form: `Stampd__Email__Smtp__Host`, `Stampd__Email__Smtp__Port`, etc.
 
 **v1.2 candidates** — drag-to-move + resize in the designer ✅, identity verification UI step ✅, B-LTA archive timestamp ✅ (CMS-attribute form; see caveat above), proper incremental-update DSS for strict ETSI PAdES B-LT conformance ✅, server-side ordering on worker columns via `long` epoch conversion ✅, edit-existing-template flow in the designer ✅.
 
-**v2.0 vision** — Blazor admin dashboards (signing volume, completion rates, drop-off by step), workflow rules engine (conditional fields, branching), industry-specific compliance bundles (HIPAA, 21 CFR Part 11, eIDAS QES). See `PRD.md` (gitignored) for the full v3.0 enterprise surface plan.
+**v2.0 vision** — Blazor admin dashboards (signing volume, completion rates, drop-off by step), workflow rules engine (conditional fields, branching), industry-specific compliance bundles (HIPAA, 21 CFR Part 11, eIDAS QES).
 
 ## Release history
 
-- **v1.1.0** *(current)* — Production sealing providers, multi-cloud storage, B-LT signatures, webhooks, bulk-send, full Blazor signer + designer UI. End-to-end verified.
+- **v1.2.0** *(current)* — Strict ETSI B-LT via PDF incremental update, B-LTA archive timestamp (CMS-attribute form), Email-OTP identity-verification UI gate, Hermex dev mailbox at `/hermex`, edit-existing-template flow, server-side worker sort columns, seamless `/demo` one-click bootstrap, sender-side **Requests** view with sealed-PDF download, executive-grade HTML OTP email template, auto-auth in Development (zero terminal commands, zero copy-paste).
+- **v1.1.0** — Production sealing providers, multi-cloud storage, B-LT signatures, webhooks, bulk-send, full Blazor signer + designer UI. End-to-end verified.
 - **v1.0.0** — PAdES B-B + B-T engine, local certificate sealing, Vault HSM via BYOK, multi-tenant API, EF Core 10.
 
 ## Comparison

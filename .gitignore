@@ -532,3 +532,23 @@ mockups/
 *.numbers
 *.pages
 
+# ---------------------------------------------------------------------------
+# SQLite databases and write-ahead-log sidecar files. Stampd, Hermex, and any
+# other in-process services keep their state in *.db/*.sqlite files alongside
+# the project; those are runtime data and never belong in source control.
+# ---------------------------------------------------------------------------
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+
+# Hermex's in-process mail store. The folder is auto-created next to the host
+# project on first SMTP capture; checking it in would persist captured mail
+# (and its SQLite db + WAL) across machines and CI runs.
+hermex/
+
