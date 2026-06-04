@@ -61,10 +61,17 @@ jobs:
         if: github.event_name == 'push'
         shell: bash
         run: |
-          PINNED=$(grep -oE '<Version>[^<]*</Version>' Directory.Build.props | head -1 | sed -E 's/<\/?Version>//g')
+          # Strip XML comments first so any <Version> mentioned in a <!-- ... --> block
+          # (e.g. the pre-release example) doesn't shadow the real declaration.
+          STRIPPED=$(perl -0777 -pe 's/<!--.*?-->//gs' Directory.Build.props)
+          PINNED=$(echo "$STRIPPED" | grep -oE '<Version>[^<]*</Version>' | head -1 | sed -E 's/<\/?Version>//g')
           TAG="${GITHUB_REF_NAME#v}"
           echo "Pinned: $PINNED"
           echo "Tag:    $TAG"
+          if [ -z "$PINNED" ]; then
+            echo "::error::Could not extract <Version> from Directory.Build.props."
+            exit 1
+          fi
           if [ "$PINNED" != "$TAG" ]; then
             echo "::error::Tag v$TAG does not match Directory.Build.props <Version>$PINNED</Version>. Bump the file or re-tag."
             exit 1
