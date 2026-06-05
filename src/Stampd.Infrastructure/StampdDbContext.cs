@@ -153,6 +153,8 @@ public class StampdDbContext : DbContext
                         }
 
                         request.TenantId = EnsureTenant(request.TenantId, currentTenant, crossTenantAllowed);
+                        // CreatedAtUtc is immutable, so the epoch shadow is only stamped here.
+                        request.CreatedAtUtcEpochMs = request.CreatedAtUtc.ToUnixTimeMilliseconds();
                     }
 
                     request.ConcurrencyToken = Guid.NewGuid();
@@ -260,6 +262,8 @@ public class StampdDbContext : DbContext
                         }
 
                         signed.TenantId = EnsureTenant(signed.TenantId, currentTenant, crossTenantAllowed);
+                        // SignedAtUtc is immutable (the throw below enforces that), so stamp once.
+                        signed.SignedAtUtcEpochMs = signed.SignedAtUtc.ToUnixTimeMilliseconds();
                     }
                     else if (entry.State == EntityState.Modified)
                     {

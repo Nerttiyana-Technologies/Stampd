@@ -21,6 +21,14 @@ public sealed class SignedDocumentRecord
 
     public DateTimeOffset SignedAtUtc { get; set; }
 
+    /// <summary>
+    /// Unix epoch milliseconds copy of <see cref="SignedAtUtc"/>. Lets the recipient
+    /// signed-document download endpoint pick the newest record for a given signing
+    /// request via server-side ORDER BY on SQLite. Stamped on insert; immutable
+    /// thereafter (SignedDocumentRecord rows are append-only).
+    /// </summary>
+    public long SignedAtUtcEpochMs { get; set; }
+
     /// <summary>The <c>ICryptographicSealingProvider</c> that produced the signature ("AzureKeyVault", "Vault", "LocalCertificate").</summary>
     public string SealingProviderName { get; set; } = string.Empty;
 

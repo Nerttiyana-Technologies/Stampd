@@ -255,6 +255,10 @@ builder.Services.AddSingleton<IStampdEngine>(sp =>
 
 builder.Services.AddScoped<SigningWorkflowService>();
 builder.Services.AddScoped<WebhookDispatcher>();
+// v1.3 #134 — completion email notifier. Singleton because it holds no per-request state;
+// the workflow service captures it via constructor injection alongside the existing
+// IEmailSender / WorkflowEmailOptions surface.
+builder.Services.AddSingleton<SenderCompletionNotifier>();
 
 // Workflow email defaults — pulled from config so adopters can flip the dispatch path
 // on by setting Stampd:Workflow:Email:SigningUrlTemplate without changing code.
@@ -265,11 +269,20 @@ var defaultSigningUrlTemplate = builder.Environment.IsDevelopment()
     ? "http://localhost:5170/sign/{accessToken}"
     : null;
 
+// SignedDocumentUrlTemplate default (v1.3 #134): point senders at the Blazor UI's signed
+// documents listing in Development, so the completion email's CTA is clickable end-to-end
+// out of the box. Adopters override Stampd:Workflow:Email:SignedDocumentUrlTemplate for
+// production deployments.
+var defaultSignedDocumentUrlTemplate = builder.Environment.IsDevelopment()
+    ? "http://localhost:5170/signed/{signedDocumentId}"
+    : null;
+
 builder.Services.AddSingleton(new WorkflowEmailOptions
 {
     FromAddress = builder.Configuration["Stampd:Workflow:Email:FromAddress"] ?? "noreply@stampd.local",
     FromDisplayName = builder.Configuration["Stampd:Workflow:Email:FromDisplayName"] ?? "Stampd",
     SigningUrlTemplate = builder.Configuration["Stampd:Workflow:Email:SigningUrlTemplate"] ?? defaultSigningUrlTemplate,
+    SignedDocumentUrlTemplate = builder.Configuration["Stampd:Workflow:Email:SignedDocumentUrlTemplate"] ?? defaultSignedDocumentUrlTemplate,
     ProductName = builder.Configuration["Stampd:Workflow:Email:ProductName"] ?? "Stampd",
 });
 

@@ -97,6 +97,9 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<long>("CreatedAtUtcEpochMs")
+                        .HasColumnType("bigint");
+
                     b.Property<Guid>("DocumentTemplateId")
                         .HasColumnType("uniqueidentifier");
 
@@ -136,6 +139,8 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
 
                     b.HasIndex("TenantId", "Status");
 
+                    b.HasIndex("Status", "CreatedAtUtcEpochMs");
+
                     b.ToTable("BulkSendJobs", (string)null);
                 });
 
@@ -151,6 +156,9 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<long>("CreatedAtUtcEpochMs")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
@@ -190,6 +198,8 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.HasIndex("TenantId", "IsArchived");
 
                     b.HasIndex("TenantId", "Name");
+
+                    b.HasIndex("TenantId", "CreatedAtUtcEpochMs");
 
                     b.ToTable("DocumentTemplates", (string)null);
                 });
@@ -292,6 +302,9 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.Property<DateTimeOffset>("SignedAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<long>("SignedAtUtcEpochMs")
+                        .HasColumnType("bigint");
+
                     b.Property<Guid>("SigningRequestId")
                         .HasColumnType("uniqueidentifier");
 
@@ -310,6 +323,8 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ContentSha256");
+
+                    b.HasIndex("SignedAtUtcEpochMs");
 
                     b.HasIndex("SigningRequestId")
                         .IsUnique();
@@ -334,6 +349,9 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<long>("CreatedAtUtcEpochMs")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
@@ -379,6 +397,8 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.HasIndex("DocumentTemplateId");
 
                     b.HasIndex("TenantId", "CreatedAtUtc");
+
+                    b.HasIndex("TenantId", "CreatedAtUtcEpochMs");
 
                     b.HasIndex("TenantId", "Status");
 
@@ -487,6 +507,9 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.Property<DateTimeOffset>("NextAttemptAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<long>("NextAttemptAtUtcEpochMs")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("PayloadJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -500,6 +523,8 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("NextAttemptAtUtc");
+
+                    b.HasIndex("NextAttemptAtUtcEpochMs");
 
                     b.HasIndex("WebhookEndpointId");
 

@@ -119,35 +119,61 @@ internal static class SigningRequestEndpoints
             : Results.Ok(ToResponse(request, http, emailOptions));
     }
 
+    /// <summary>
+    /// Defaults align with the Blazor list page: 25 rows per page hits the sweet spot
+    /// between scannable density and one-screen visibility. The 200 cap matches the
+    /// historical hard limit at <c>Take(100)</c> headroom so power users can pull
+    /// generous slices without DoS risk on the (TenantId, CreatedAtUtcEpochMs) index.
+    /// </summary>
+    private const int DefaultPageSize = 25;
+    private const int MaxPageSize = 200;
+
     private static async Task<IResult> ListAsync(
         [Microsoft.AspNetCore.Mvc.FromQuery] Guid? templateId,
+        [Microsoft.AspNetCore.Mvc.FromQuery] int? page,
+        [Microsoft.AspNetCore.Mvc.FromQuery] int? pageSize,
         [FromServices] StampdDbContext db,
         [FromServices] WorkflowEmailOptions emailOptions,
         HttpContext http,
         CancellationToken ct)
     {
-        var query = db.SigningRequests
-            .Include(r => r.Recipients).ThenInclude(p => p.Role)
-            .Include(r => r.DocumentTemplate)
-            .AsQueryable();
+        // Coerce to safe bounds. Defensive against negative or absurdly large query
+        // values from over-zealous callers — the page object always returns a valid
+        // page even when the caller asks for page 99 of a 3-page result.
+        var requestedPageSize = pageSize.GetValueOrDefault(DefaultPageSize);
+        var effectivePageSize = requestedPageSize switch
+        {
+            <= 0 => DefaultPageSize,
+            > MaxPageSize => MaxPageSize,
+            _ => requestedPageSize,
+        };
+        var effectivePage = Math.Max(1, page.GetValueOrDefault(1));
 
+        var query = db.SigningRequests.AsQueryable();
         if (templateId is not null)
         {
             query = query.Where(r => r.DocumentTemplateId == templateId.Value);
         }
 
-        // SQLite can't translate ORDER BY on DateTimeOffset (the text-sort is ambiguous
-        // across offsets). Materialize the candidate set — capped at 500 so the sort scales
-        // — then take the newest 100 client-side. Adding an epoch shadow column the way
-        // DocumentTemplate did (see internal/implementation/16) is a v1.3 follow-up if this
-        // list grows hot.
-        var requests = (await query
-                .Take(500)
-                .ToListAsync(ct)
-                .ConfigureAwait(false))
-            .OrderByDescending(r => r.CreatedAtUtc)
-            .Take(100)
-            .ToList();
+        // Count first (cheap on the indexed column) so we can return totalPages even
+        // when the requested page is empty. Run on the bare query before Include —
+        // EF translates this to SELECT COUNT(*) which doesn't need the joins.
+        var total = await query.CountAsync(ct).ConfigureAwait(false);
+
+        // v1.3 #133: server-side ORDER BY on the epoch shadow column. SQLite can sort
+        // a long natively; the (TenantId, CreatedAtUtcEpochMs) composite index covers
+        // tenant-scoped newest-first listing. v1.3 #158: window with Skip+Take instead
+        // of the legacy hard cap. The Include calls hang off the windowed query so we
+        // only hydrate Recipients + DocumentTemplate for the rows we're returning.
+        var skip = (effectivePage - 1) * effectivePageSize;
+        var requests = await query
+            .OrderByDescending(r => r.CreatedAtUtcEpochMs)
+            .Skip(skip)
+            .Take(effectivePageSize)
+            .Include(r => r.Recipients).ThenInclude(p => p.Role)
+            .Include(r => r.DocumentTemplate)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
 
         // Project after materialization so the ToResponse helper (which composes URLs
         // through WorkflowEmailOptions and HttpContext) can do its job without query-tree
@@ -164,7 +190,18 @@ internal static class SigningRequestEndpoints
             recipients = ToResponse(r, http, emailOptions).Recipients,
         }).ToList();
 
-        return Results.Ok(rows);
+        // totalPages is at least 1 even for empty result sets, so UI math like
+        // "Page X of Y" never renders a degenerate "Page 1 of 0".
+        var totalPages = total == 0 ? 1 : (int)Math.Ceiling(total / (double)effectivePageSize);
+
+        return Results.Ok(new
+        {
+            items = rows,
+            total,
+            page = effectivePage,
+            pageSize = effectivePageSize,
+            totalPages,
+        });
     }
 
     private static SigningRequestResponse ToResponse(

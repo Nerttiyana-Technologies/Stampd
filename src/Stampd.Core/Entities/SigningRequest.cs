@@ -31,6 +31,14 @@ public sealed class SigningRequest
     public DateTimeOffset? VoidedAtUtc { get; set; }
     public DateTimeOffset? ExpiresAtUtc { get; set; }
 
+    /// <summary>
+    /// Unix epoch milliseconds copy of <see cref="CreatedAtUtc"/>. Lets
+    /// <c>GET /api/signing-requests</c> ORDER BY newest-first server-side on SQLite
+    /// (text-sort on TEXT-stored DateTimeOffset is unreliable across offsets). Stamped
+    /// on insert by the SaveChanges interceptor; immutable thereafter.
+    /// </summary>
+    public long CreatedAtUtcEpochMs { get; set; }
+
     /// <summary>Recorded reason when <see cref="Status"/> is <see cref="SigningRequestStatus.Declined"/> or <see cref="SigningRequestStatus.Voided"/>.</summary>
     public string? TerminationReason { get; set; }
 

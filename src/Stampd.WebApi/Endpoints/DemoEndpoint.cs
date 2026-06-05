@@ -63,6 +63,9 @@ internal static class DemoEndpoint
         var template = existing ?? await CreateDemoTemplateAsync(db, storage, ct).ConfigureAwait(false);
 
         // ---- 2. Dispatch a signing request to a demo recipient ----
+        // SenderEmail/SenderName populated so the v1.3 completion notifier fires when the
+        // demo recipient finishes signing — gives the /demo bootstrap a visible "all
+        // recipients signed" email in Hermex without the user having to type anything.
         var body = new CreateSigningRequestBody(
             DocumentTemplateId: template.Id,
             Subject: $"Please sign — {DemoTemplateName}",
@@ -74,7 +77,9 @@ internal static class DemoEndpoint
                     RoleName: DemoRoleName,
                     Email: "alice@example.com",
                     Name: "Alice Example"),
-            ]);
+            ],
+            SenderEmail: "sender@stampd.dev",
+            SenderName: "Demo Sender");
 
         var created = await workflow.DispatchAsync(body, ct).ConfigureAwait(false);
 

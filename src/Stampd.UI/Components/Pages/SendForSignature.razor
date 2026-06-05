@@ -87,6 +87,20 @@
         </section>
 
         <section class="stampd-card">
+            <h2 class="stampd-card-title">Sender</h2>
+            <p class="stampd-page-subtitle" style="margin-top: 0.25rem;">
+                You'll receive a notification email once every recipient has signed.
+            </p>
+            <div style="display:grid; grid-template-columns: 1fr 2fr; gap: 0.6rem 1rem; align-items: center; margin-top: 0.75rem;">
+                <label class="signer-field-label">Your name</label>
+                <input class="stampd-auth-input" @bind="_senderName" placeholder="You" />
+
+                <label class="signer-field-label">Your email</label>
+                <input class="stampd-auth-input" type="email" @bind="_senderEmail" placeholder="you@example.com" />
+            </div>
+        </section>
+
+        <section class="stampd-card">
             <h2 class="stampd-card-title">Recipient</h2>
             <div style="display:grid; grid-template-columns: 1fr 2fr; gap: 0.6rem 1rem; align-items: center; margin-top: 0.75rem;">
                 <label class="signer-field-label">Name</label>
@@ -143,6 +157,13 @@
     private string _subject = string.Empty;
     private string _message = string.Empty;
 
+    // Sender identity (v1.3 #134) — drives both the "all signed" completion email and
+    // SigningRequest.CreatedBy on the API side. Pre-filled in Development to keep the
+    // demo one-clickable; clearing the fields disables the completion email rather than
+    // blocking dispatch.
+    private string _senderName = string.Empty;
+    private string _senderEmail = string.Empty;
+
     private bool _loading = true;
     private bool _sending;
     private string? _sendError;
@@ -151,6 +172,15 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Pre-fill sender defaults in Development so the demo flow is one-click — the
+        // Hermex in-process SMTP server happily captures anything routable, including
+        // these "@stampd.dev" placeholders. Users overwrite freely.
+        if (HostEnv.IsDevelopment())
+        {
+            _senderName = "Demo Sender";
+            _senderEmail = "sender@stampd.dev";
+        }
+
         if (AutoAuth)
         {
             await LoadTemplateAsync();
@@ -210,7 +240,9 @@
                         RoleName: _selectedRoleName!.Trim(),
                         Email: _recipientEmail.Trim(),
                         Name: _recipientName.Trim()),
-                ]);
+                ],
+                SenderEmail: string.IsNullOrWhiteSpace(_senderEmail) ? null : _senderEmail.Trim(),
+                SenderName: string.IsNullOrWhiteSpace(_senderName) ? null : _senderName.Trim());
 
             var (ok, response, err) = await Api.CreateSigningRequestAsync(_token, body, CancellationToken.None);
             if (!ok || response is null)

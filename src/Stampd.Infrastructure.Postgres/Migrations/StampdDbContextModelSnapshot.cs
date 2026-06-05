@@ -97,6 +97,9 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<long>("CreatedAtUtcEpochMs")
+                        .HasColumnType("bigint");
+
                     b.Property<Guid>("DocumentTemplateId")
                         .HasColumnType("uuid");
 
@@ -134,6 +137,8 @@ namespace Stampd.Infrastructure.Postgres.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Status", "CreatedAtUtcEpochMs");
+
                     b.HasIndex("TenantId", "Status");
 
                     b.ToTable("BulkSendJobs", (string)null);
@@ -151,6 +156,9 @@ namespace Stampd.Infrastructure.Postgres.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("CreatedAtUtcEpochMs")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
@@ -186,6 +194,8 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CreatedAtUtcEpochMs");
 
                     b.HasIndex("TenantId", "IsArchived");
 
@@ -292,6 +302,9 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.Property<DateTimeOffset>("SignedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<long>("SignedAtUtcEpochMs")
+                        .HasColumnType("bigint");
+
                     b.Property<Guid>("SigningRequestId")
                         .HasColumnType("uuid");
 
@@ -310,6 +323,8 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ContentSha256");
+
+                    b.HasIndex("SignedAtUtcEpochMs");
 
                     b.HasIndex("SigningRequestId")
                         .IsUnique();
@@ -334,6 +349,9 @@ namespace Stampd.Infrastructure.Postgres.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("CreatedAtUtcEpochMs")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
@@ -379,6 +397,8 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.HasIndex("DocumentTemplateId");
 
                     b.HasIndex("TenantId", "CreatedAtUtc");
+
+                    b.HasIndex("TenantId", "CreatedAtUtcEpochMs");
 
                     b.HasIndex("TenantId", "Status");
 
@@ -487,6 +507,9 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.Property<DateTimeOffset>("NextAttemptAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<long>("NextAttemptAtUtcEpochMs")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("PayloadJson")
                         .IsRequired()
                         .HasColumnType("text");
@@ -500,6 +523,8 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("NextAttemptAtUtc");
+
+                    b.HasIndex("NextAttemptAtUtcEpochMs");
 
                     b.HasIndex("WebhookEndpointId");
 
