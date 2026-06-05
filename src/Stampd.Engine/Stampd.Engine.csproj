@@ -13,6 +13,15 @@
 
   <ItemGroup>
     <!--
+      Expose internal types to the engine test project so the pure-function
+      AtsHashIndexV3Builder helper (v1.3 #131) can be unit-tested without
+      promoting it to public API. Add new test assemblies here as they're created.
+    -->
+    <InternalsVisibleTo Include="Stampd.Engine.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
       PDFsharp 6.x (MIT, https://github.com/empira/PDFsharp) is the actively-maintained
       successor to PdfSharpCore. The PRD currently names PdfSharpCore; the spike uses
       PDFsharp 6.x because it has first-class digital signature support since 6.1.

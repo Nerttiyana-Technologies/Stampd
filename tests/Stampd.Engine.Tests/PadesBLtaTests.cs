@@ -32,11 +32,21 @@ namespace Stampd.Engine.Tests;
 /// 2. The id-aa-ets-archiveTimestampV3 OID (1.2.840.113549.1.9.16.2.48) is present
 ///    in the resulting CMS unsigned attributes.
 /// 3. B-LT remains a single-TST signature — no archive attribute leaks into it.
+/// 4. (v1.3 #131) The strict id-aa-ats-hash-index-v3 attribute is present alongside
+///    the archive TST, with the correct hashIndAlgorithm and per-category entry
+///    counts (certs / CRLs / unsigned attrs).
 /// </summary>
 public sealed class PadesBLtaTests
 {
     // RFC 5816 / ETSI TS 101 733 §6.4.3 — archive-time-stamp-v3 attribute OID.
     private const string ArchiveTimestampV3Oid = "1.2.840.113549.1.9.16.2.48";
+
+    // RFC 7026 — id-aa-ats-hash-index-v3 attribute OID. Locks in the membership of
+    // certs/CRLs/unsigned attrs that the archive TST witnessed.
+    private const string AtsHashIndexV3Oid = "1.2.840.113549.1.9.16.2.51";
+
+    // NIST OID for SHA-256 — the default hashIndAlgorithm in our engine wiring.
+    private const string Sha256Oid = "2.16.840.1.101.3.4.2.1";
 
     [Fact]
     public async Task Engine_WithBltaLevel_RequestsTwoTstsAndEmbedsArchiveAttribute()
@@ -73,6 +83,22 @@ public sealed class PadesBLtaTests
         var oids = CollectUnsignedAttributeOids(inspector.FirstSigner);
         Assert.Contains(PkcsObjectIdentifiers.IdAASignatureTimeStampToken.Id, oids);
         Assert.Contains(ArchiveTimestampV3Oid, oids);
+
+        // v1.3 #131 — strict ATSHashIndexV3 attribute must also be present, locking
+        // in (certs, CRLs, existing unsigned attrs) at archive-time. Without this the
+        // archive TST imprint reduces to the v1.2 pragmatic compromise.
+        Assert.Contains(AtsHashIndexV3Oid, oids);
+
+        // Verify the hash-index attribute's wire shape: SHA-256 algorithm identifier,
+        // one cert in certificatesHashIndex (the signer cert), zero CRLs (we keep
+        // revocation in the PDF DSS, not in CMS), and one entry in
+        // unsignedAttrValuesHashIndex (the signature-TST that exists before the
+        // archive TST is added).
+        var index = ParseAtsHashIndex(inspector.FirstSigner);
+        Assert.Equal(Sha256Oid, index.HashAlgorithmOid);
+        Assert.Equal(1, index.CertificatesCount);
+        Assert.Equal(0, index.CrlsCount);
+        Assert.Equal(1, index.UnsignedAttrValuesCount);
     }
 
     [Fact]
@@ -147,6 +173,48 @@ public sealed class PadesBLtaTests
         }
         return oids;
     }
+
+    /// <summary>
+    /// Pulls the ats-hash-index-v3 attribute off the signer's unsigned attrs and
+    /// parses its ASN.1 SEQUENCE into a small struct the tests can assert against.
+    /// Fields per RFC 7026: hashIndAlgorithm, certificatesHashIndex, crlsHashIndex,
+    /// unsignedAttrValuesHashIndex.
+    /// </summary>
+    private static AtsHashIndexSnapshot ParseAtsHashIndex(SignerInformation signer)
+    {
+        var unsigned = signer.UnsignedAttributes
+            ?? throw new InvalidOperationException("Signer has no unsigned attributes.");
+        var vec = unsigned.ToAsn1EncodableVector();
+
+        Org.BouncyCastle.Asn1.Cms.Attribute? hashIndexAttr = null;
+        for (var i = 0; i < vec.Count; i++)
+        {
+            if (vec[i] is Org.BouncyCastle.Asn1.Cms.Attribute a && a.AttrType.Id == AtsHashIndexV3Oid)
+            {
+                hashIndexAttr = a;
+                break;
+            }
+        }
+        Assert.NotNull(hashIndexAttr);
+
+        var sequence = (Asn1Sequence)hashIndexAttr.AttrValues[0];
+        var algorithm = Org.BouncyCastle.Asn1.X509.AlgorithmIdentifier.GetInstance(sequence[0]);
+        var certs = (Asn1Sequence)sequence[1];
+        var crls = (Asn1Sequence)sequence[2];
+        var unsignedAttrs = (Asn1Sequence)sequence[3];
+
+        return new AtsHashIndexSnapshot(
+            HashAlgorithmOid: algorithm.Algorithm.Id,
+            CertificatesCount: certs.Count,
+            CrlsCount: crls.Count,
+            UnsignedAttrValuesCount: unsignedAttrs.Count);
+    }
+
+    private sealed record AtsHashIndexSnapshot(
+        string HashAlgorithmOid,
+        int CertificatesCount,
+        int CrlsCount,
+        int UnsignedAttrValuesCount);
 
     /// <summary>
     /// In-process stub TSA that builds a real (BouncyCastle-generated) RFC 3161

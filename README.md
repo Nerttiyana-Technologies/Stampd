@@ -183,7 +183,7 @@ Env-var form: `Stampd__Email__Smtp__Host`, `Stampd__Email__Smtp__Port`, etc.
 | Drag-to-move + resize handles in designer | — | — | ✅ |
 | True PDF incremental update for strict ETSI B-LT | — | — | ✅ |
 
-† **B-LTA caveat.** v1.2 implements B-LTA as a CMS `id-aa-ets-archiveTimestampV3` unsigned attribute (OID `1.2.840.113549.1.9.16.2.48`) carrying a second TSA assertion over the SignerInfo. This anchors the (signature + B-T timestamp + DSS-covered byte range) to a new TSA so the signature stays verifiable after the signer cert expires — which is the substantive guarantee B-LTA provides. A separate v1.3 item tracks two strict-ETSI refinements: (1) the ATSHashIndexV3 imprint computation in ETSI TS 101 733 §6.4.3, and (2) PAdES Document Timestamp (an incremental-update `/Type /DocTimeStamp` signature dictionary) as the alternative carrier ETSI EN 319 142-1 prefers for PAdES specifically.
+† **B-LTA caveat.** Stampd implements B-LTA as a CMS `id-aa-ets-archiveTimestampV3` unsigned attribute (OID `1.2.840.113549.1.9.16.2.48`) carrying a second TSA assertion alongside the strict ETSI **`id-aa-ats-hash-index-v3`** attribute (OID `1.2.840.113549.1.9.16.2.51`, RFC 7026 / ETSI TS 101 733 §6.4.3) — the hash index locks in exactly which certs, CRLs, and existing unsigned attrs the archive TST witnessed, so any future addition to the CMS can't silently invalidate the timestamp. **v1.3 #131** ✅ replaced the v1.2 pragmatic SignerInfo-DER imprint with this spec-compliant computation. A separate v1.3 item (**#132**, in progress) tracks adding the PAdES Document Timestamp (an incremental-update `/Type /DocTimeStamp` signature dictionary) as the alternative carrier ETSI EN 319 142-1 prefers for PAdES specifically.
 
 ## Roadmap
 
