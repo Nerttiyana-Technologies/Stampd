@@ -23,6 +23,17 @@ public sealed class WorkflowEmailOptions
     /// <example><c>https://signing.example.com/sign/{accessToken}</c></example>
     public string? SigningUrlTemplate { get; set; }
 
+    /// <summary>
+    /// URL template for the sender completion notification email (v1.3 #134). The literal
+    /// substrings <c>{signedDocumentId}</c> and <c>{signingRequestId}</c> are replaced with
+    /// the relevant GUIDs. When null, the completion notifier omits the call-to-action link
+    /// and the email body invites the sender to log in to their dashboard instead. The
+    /// completion email itself still fires (provided <see cref="SigningRequest.CreatedBy"/>
+    /// parses as a mailbox).
+    /// </summary>
+    /// <example><c>https://app.example.com/sender/signed/{signedDocumentId}</c></example>
+    public string? SignedDocumentUrlTemplate { get; set; }
+
     /// <summary>Optional product name used in subject lines and body templates.</summary>
     public string ProductName { get; set; } = "Stampd";
 }

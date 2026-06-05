@@ -21,10 +21,15 @@ internal sealed class SigningRequestConfiguration : IEntityTypeConfiguration<Sig
         builder.Property(r => r.CreatedAtUtc).IsRequired();
         builder.Property(r => r.TerminationReason).HasMaxLength(2048);
         builder.Property(r => r.ConcurrencyToken).IsConcurrencyToken().IsRequired();
+        builder.Property(r => r.CreatedAtUtcEpochMs).IsRequired();
 
         builder.HasIndex(r => new { r.TenantId, r.Status });
         builder.HasIndex(r => new { r.TenantId, r.CreatedAtUtc });
         builder.HasIndex(r => r.DocumentTemplateId);
+        // GET /api/signing-requests orders newest-first by this epoch column. The
+        // (TenantId, CreatedAtUtcEpochMs) composite serves the optional ?templateId=
+        // filter as well — DocumentTemplateId is correlated with TenantId.
+        builder.HasIndex(r => new { r.TenantId, r.CreatedAtUtcEpochMs });
 
         builder.HasOne(r => r.DocumentTemplate)
             .WithMany()

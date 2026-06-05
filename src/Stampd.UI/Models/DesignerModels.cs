@@ -69,12 +69,19 @@ public sealed record TemplateFieldDetail(
     [property: JsonPropertyName("label")] string? Label);
 
 /// <summary>Mirror of WebApi's CreateSigningRequestBody.</summary>
+/// <remarks>
+/// <c>SenderEmail</c> + <c>SenderName</c> drive the v1.3 #134 completion notification —
+/// the email address that gets the "all recipients signed" message and is persisted into
+/// <c>SigningRequest.CreatedBy</c>. Optional for backward compat with pre-1.3 callers.
+/// </remarks>
 public sealed record CreateSigningRequestBody(
     [property: JsonPropertyName("documentTemplateId")] Guid DocumentTemplateId,
     [property: JsonPropertyName("subject")] string Subject,
     [property: JsonPropertyName("message")] string? Message,
     [property: JsonPropertyName("expiresAtUtc")] DateTimeOffset? ExpiresAtUtc,
-    [property: JsonPropertyName("recipients")] IReadOnlyList<RecipientAssignmentDto> Recipients);
+    [property: JsonPropertyName("recipients")] IReadOnlyList<RecipientAssignmentDto> Recipients,
+    [property: JsonPropertyName("senderEmail")] string? SenderEmail = null,
+    [property: JsonPropertyName("senderName")] string? SenderName = null);
 
 public sealed record RecipientAssignmentDto(
     [property: JsonPropertyName("roleName")] string RoleName,
@@ -113,6 +120,18 @@ public sealed record SigningRequestSummary(
     [property: JsonPropertyName("createdAtUtc")] DateTimeOffset CreatedAtUtc,
     [property: JsonPropertyName("completedAtUtc")] DateTimeOffset? CompletedAtUtc,
     [property: JsonPropertyName("recipients")] IReadOnlyList<RecipientViewDto> Recipients);
+
+/// <summary>
+/// Mirror of the paged envelope returned by GET /api/signing-requests (v1.3 #158).
+/// <c>TotalPages</c> is always at least 1 even when <c>Total</c> is 0, so UI math
+/// reads "Page 1 of 1" rather than a degenerate "Page 1 of 0".
+/// </summary>
+public sealed record SigningRequestListPage(
+    [property: JsonPropertyName("items")] IReadOnlyList<SigningRequestSummary> Items,
+    [property: JsonPropertyName("total")] int Total,
+    [property: JsonPropertyName("page")] int Page,
+    [property: JsonPropertyName("pageSize")] int PageSize,
+    [property: JsonPropertyName("totalPages")] int TotalPages);
 
 /// <summary>Working state for one designer-placed field. Index is local to the editor.</summary>
 public sealed class DesignerField

@@ -4,12 +4,25 @@ using Stampd.Core.Entities;
 namespace Stampd.WebApi.Models;
 
 /// <summary>Request body for <c>POST /api/signing-requests</c>.</summary>
+/// <remarks>
+/// <para>
+/// <paramref name="SenderEmail"/> and <paramref name="SenderName"/> identify the human
+/// initiating the signing request (typically the authenticated dashboard user). When
+/// supplied, the sender receives a completion notification email once the last recipient
+/// signs (v1.3 #134). <paramref name="SenderEmail"/> is also persisted into
+/// <see cref="SigningRequest.CreatedBy"/> so the audit trail names the originator; when
+/// omitted, CreatedBy falls back to the legacy <c>"api"</c> sentinel and no completion
+/// email is sent.
+/// </para>
+/// </remarks>
 public sealed record CreateSigningRequestBody(
     Guid DocumentTemplateId,
     string Subject,
     string? Message,
     DateTimeOffset? ExpiresAtUtc,
-    IReadOnlyList<RecipientAssignment> Recipients);
+    IReadOnlyList<RecipientAssignment> Recipients,
+    string? SenderEmail = null,
+    string? SenderName = null);
 
 /// <summary>Assigns a real person to a template role.</summary>
 public sealed record RecipientAssignment(string RoleName, string Email, string Name);

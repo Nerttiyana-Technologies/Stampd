@@ -29,11 +29,11 @@
         {
             <p class="stampd-page-subtitle">Enter a JWT bearer token above to list signing requests.</p>
         }
-        else if (_requests is null)
+        else if (_page is null)
         {
             <div class="signer-error">Failed to load signing requests.</div>
         }
-        else if (_requests.Count == 0)
+        else if (_page.Items.Count == 0)
         {
             <p class="stampd-page-subtitle">
                 No signing requests yet. Open a template in the
@@ -50,7 +50,7 @@
                     <div>Dispatched</div>
                     <div>Signed PDF</div>
                 </div>
-                @foreach (var r in _requests)
+                @foreach (var r in _page.Items)
                 {
                     var firstRecipient = r.Recipients.FirstOrDefault();
                     var isCompleted = string.Equals(r.Status, "Completed", StringComparison.OrdinalIgnoreCase);
@@ -106,14 +106,57 @@
                     </div>
                 }
             </div>
+
+            <!-- Pagination footer (v1.3 #158) -->
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-top:1.25rem; padding-top:1rem; border-top:1px solid var(--stampd-border);">
+                <div style="display:flex; align-items:center; gap:0.6rem; font-size:0.85rem; color: var(--stampd-muted);">
+                    <span>@RowRangeLabel()</span>
+                    <span style="opacity:0.5;">·</span>
+                    <label for="page-size" style="font-size:0.85rem;">Per page</label>
+                    <select id="page-size"
+                            class="stampd-auth-input"
+                            style="width:auto; padding:0.3rem 0.5rem; font-size:0.85rem;"
+                            value="@_pageSize"
+                            @onchange="OnPageSizeChanged">
+                        @foreach (var size in PageSizeOptions)
+                        {
+                            <option value="@size">@size</option>
+                        }
+                    </select>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <button type="button"
+                            class="stampd-btn stampd-btn--ghost"
+                            disabled="@(_page.Page <= 1)"
+                            @onclick="PrevPageAsync">
+                        ← Previous
+                    </button>
+                    <span style="font-size:0.85rem; color: var(--stampd-muted); padding:0 0.5rem;">
+                        Page <strong style="color: var(--stampd-text);">@_page.Page</strong> of <strong style="color: var(--stampd-text);">@_page.TotalPages</strong>
+                    </span>
+                    <button type="button"
+                            class="stampd-btn stampd-btn--ghost"
+                            disabled="@(_page.Page >= _page.TotalPages)"
+                            @onclick="NextPageAsync">
+                        Next →
+                    </button>
+                </div>
+            </div>
         }
     </section>
 </div>
 
 @code {
+    // Page-size choices kept narrow on purpose — 10/25/50/100 covers scanability through
+    // power use without offering a footgun (the API caps at 200 regardless).
+    private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+
     private DesignerAuthBar? _authBar;
     private string _token = string.Empty;
-    private IReadOnlyList<SigningRequestSummary>? _requests;
+    private SigningRequestListPage? _page;
+    private int _pageNumber = 1;
+    private int _pageSize = 25;
     private bool _loading;
 
     private bool AutoAuth => HostEnv.IsDevelopment();
@@ -131,7 +174,7 @@
         _token = token;
         if (string.IsNullOrEmpty(token))
         {
-            _requests = null;
+            _page = null;
             return;
         }
         await LoadAsync();
@@ -142,12 +185,49 @@
         _loading = true;
         try
         {
-            _requests = await Api.ListSigningRequestsAsync(_token, templateId: null, CancellationToken.None);
+            _page = await Api.ListSigningRequestsAsync(
+                _token,
+                templateId: null,
+                _pageNumber,
+                _pageSize,
+                CancellationToken.None);
         }
         finally
         {
             _loading = false;
         }
+    }
+
+    private async Task PrevPageAsync()
+    {
+        if (_page is null || _page.Page <= 1) return;
+        _pageNumber = _page.Page - 1;
+        await LoadAsync();
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (_page is null || _page.Page >= _page.TotalPages) return;
+        _pageNumber = _page.Page + 1;
+        await LoadAsync();
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var newSize) || newSize <= 0) return;
+        // Reset to page 1 when the window size changes — otherwise asking for page 8
+        // at 100/page lands on a phantom page when you switch down to 10/page.
+        _pageSize = newSize;
+        _pageNumber = 1;
+        await LoadAsync();
+    }
+
+    private string RowRangeLabel()
+    {
+        if (_page is null || _page.Total == 0) return "No results";
+        var first = ((_page.Page - 1) * _page.PageSize) + 1;
+        var last = Math.Min(first + _page.Items.Count - 1, _page.Total);
+        return $"Showing {first}–{last} of {_page.Total}";
     }
 
     /// <summary>
@@ -160,7 +240,7 @@
     private string SignedDocumentUrl(Guid requestId)
     {
         var apiBase = (Config["Stampd:Api:BaseUrl"] ?? "http://localhost:5070").TrimEnd('/');
-        var request = _requests?.FirstOrDefault(r => r.Id == requestId);
+        var request = _page?.Items.FirstOrDefault(r => r.Id == requestId);
         var recipient = request?.Recipients.FirstOrDefault();
         if (recipient?.AccessUrl is null)
         {

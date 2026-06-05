@@ -211,17 +211,15 @@ internal static class RecipientSigningEndpoints
 
         // The signed PDF only exists after the workflow service has finalized — i.e., all
         // required recipients have signed and the engine has produced the sealed bytes.
-        // Sort newest-first client-side; SQLite can't translate ORDER BY on a DateTimeOffset
-        // column (see internal/implementation/16) and there's usually exactly one record per
-        // signing request anyway.
-        var candidates = await db.SignedDocumentRecords
+        // v1.3 #133: server-side ORDER BY on the epoch shadow column. There's typically
+        // exactly one record per signing request (SigningRequestId is unique on the
+        // table), but ordering newest-first is the contractually correct behavior if a
+        // re-sign workflow ever lands.
+        var signed = await db.SignedDocumentRecords
             .Where(r => r.SigningRequestId == request.Id)
-            .ToListAsync(ct)
+            .OrderByDescending(r => r.SignedAtUtcEpochMs)
+            .FirstOrDefaultAsync(ct)
             .ConfigureAwait(false);
-
-        var signed = candidates
-            .OrderByDescending(r => r.SignedAtUtc)
-            .FirstOrDefault();
 
         if (signed is null)
         {

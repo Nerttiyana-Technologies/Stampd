@@ -21,9 +21,16 @@ internal sealed class SignedDocumentRecordConfiguration : IEntityTypeConfigurati
         builder.Property(d => d.SealingKeyIdentifier).IsRequired().HasMaxLength(512);
         builder.Property(d => d.TimestampAuthorityUrl).HasMaxLength(512);
         builder.Property(d => d.PAdESLevel).IsRequired().HasConversion<int>();
+        builder.Property(d => d.SignedAtUtcEpochMs).IsRequired();
 
         builder.HasIndex(d => new { d.TenantId, d.SignedAtUtc });
         builder.HasIndex(d => d.SigningRequestId).IsUnique();
         builder.HasIndex(d => d.ContentSha256);
+        // The recipient signed-document endpoint asks "newest record for this signing
+        // request" via ORDER BY SignedAtUtcEpochMs DESC. SigningRequestId is already
+        // unique above, so this is a single-row lookup — but the epoch index avoids
+        // SQLite trying (and failing) to translate ORDER BY on TEXT-stored
+        // DateTimeOffset.
+        builder.HasIndex(d => d.SignedAtUtcEpochMs);
     }
 }

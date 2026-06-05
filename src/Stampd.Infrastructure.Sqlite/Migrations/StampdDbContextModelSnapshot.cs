@@ -297,6 +297,9 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.Property<DateTimeOffset>("SignedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<long>("SignedAtUtcEpochMs")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid>("SigningRequestId")
                         .HasColumnType("TEXT");
 
@@ -315,6 +318,8 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ContentSha256");
+
+                    b.HasIndex("SignedAtUtcEpochMs");
 
                     b.HasIndex("SigningRequestId")
                         .IsUnique();
@@ -339,6 +344,9 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAtUtcEpochMs")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
@@ -384,6 +392,8 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.HasIndex("DocumentTemplateId");
 
                     b.HasIndex("TenantId", "CreatedAtUtc");
+
+                    b.HasIndex("TenantId", "CreatedAtUtcEpochMs");
 
                     b.HasIndex("TenantId", "Status");
 

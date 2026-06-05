@@ -134,18 +134,26 @@ public sealed class DesignerApiClient
     }
 
     /// <summary>
-    /// Lists the most recent signing requests for the current tenant. Optionally filters
-    /// by template id. Used by the <c>/designer/requests</c> page so the sender can browse
-    /// in-flight and completed workflows and grab signed PDFs.
+    /// Lists signing requests for the current tenant, newest first, with paging
+    /// (v1.3 #158). Used by the <c>/designer/requests</c> page so the sender can browse
+    /// in-flight and completed workflows and grab signed PDFs. <paramref name="page"/>
+    /// and <paramref name="pageSize"/> map to the API's query params and the server
+    /// coerces both to safe bounds — page≥1, pageSize∈[1,200] defaulting to 25.
     /// </summary>
-    public async Task<IReadOnlyList<SigningRequestSummary>?> ListSigningRequestsAsync(
+    public async Task<SigningRequestListPage?> ListSigningRequestsAsync(
         string bearerToken,
         Guid? templateId,
+        int page,
+        int pageSize,
         CancellationToken ct)
     {
-        var url = templateId is null
-            ? "/api/signing-requests/"
-            : $"/api/signing-requests/?templateId={templateId.Value}";
+        var queryParams = new List<string> { $"page={page}", $"pageSize={pageSize}" };
+        if (templateId is not null)
+        {
+            queryParams.Add($"templateId={templateId.Value}");
+        }
+
+        var url = "/api/signing-requests/?" + string.Join('&', queryParams);
 
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
         ApplyBearer(req, bearerToken);
@@ -157,7 +165,7 @@ public sealed class DesignerApiClient
         }
 
         return await resp.Content
-            .ReadFromJsonAsync<List<SigningRequestSummary>>(JsonOptions, ct)
+            .ReadFromJsonAsync<SigningRequestListPage>(JsonOptions, ct)
             .ConfigureAwait(false);
     }
 
