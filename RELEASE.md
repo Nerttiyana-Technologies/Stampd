@@ -65,14 +65,14 @@ For pre-releases, set `<VersionSuffix>preview.1</VersionSuffix>` (or `rc.1`, `be
 Edit `Directory.Build.props`:
 
 ```xml
-<Version>1.2.0</Version>
+<Version>1.3.0</Version>
 ```
 
 Commit:
 
 ```bash
 git add Directory.Build.props
-git commit -m "chore(release): bump version to 1.2.0"
+git commit -m "chore(release): bump version to 1.3.0"
 ```
 
 ### 2. Verify locally
@@ -82,7 +82,7 @@ Pack against the live source and inspect what nuget.org would see:
 ```bash
 dotnet pack Stampd.slnx --configuration Release --output ./artifacts
 ls artifacts/                                # 21 .nupkg + 21 .snupkg
-unzip -p artifacts/Stampd.Core.1.2.0.nupkg Stampd.Core.nuspec | head -40
+unzip -p artifacts/Stampd.Core.1.3.0.nupkg Stampd.Core.nuspec | head -40
 ```
 
 Sanity-check: every `.nupkg` is present, descriptions look right, the README opens with the right text on nuget.org's preview.
@@ -90,9 +90,9 @@ Sanity-check: every `.nupkg` is present, descriptions look right, the README ope
 ### 3. Tag and push
 
 ```bash
-git tag v1.2.0
+git tag v1.3.0
 git push origin main
-git push origin v1.2.0
+git push origin v1.3.0
 ```
 
 The tag push triggers `.github/workflows/release.yml`. The workflow:
@@ -114,9 +114,9 @@ After the run finishes (typically 3–5 minutes), allow nuget.org's indexer ~10 
 mkdir /tmp/stampd-smoke && cd /tmp/stampd-smoke
 dotnet new console -n SmokeTest
 cd SmokeTest
-dotnet add package Stampd.Core --version 1.2.0
-dotnet add package Stampd.Engine --version 1.2.0
-dotnet add package Stampd.Crypto.LocalCertificate --version 1.2.0
+dotnet add package Stampd.Core --version 1.3.0
+dotnet add package Stampd.Engine --version 1.3.0
+dotnet add package Stampd.Crypto.LocalCertificate --version 1.3.0
 dotnet build
 ```
 
@@ -135,7 +135,56 @@ Useful for validating packaging changes before tagging.
 
 Mistakes happen. From the nuget.org package page, click **Manage** → **Listed: Yes → No** on the bad version. The package stays available for adopters who already pinned it (NuGet's deprecation contract) but disappears from search and from `dotnet add package` without an explicit version.
 
-After yanking, bump `Directory.Build.props` to the next patch (e.g. `1.2.0 → 1.2.1`) and re-release. Never reuse a version number.
+After yanking, bump `Directory.Build.props` to the next patch (e.g. `1.3.0 → 1.3.1`) and re-release. Never reuse a version number.
+
+## Upgrade notes
+
+### Upgrading from v1.2.0 → v1.3.0
+
+v1.3 is a MINOR release — additive on the API and DI surface, but adopters running specific provider combinations should know about three concrete migration concerns.
+
+#### 1. SqlServer and Postgres providers must apply V12 + V13 sequentially
+
+`Stampd.Infrastructure.SqlServer` 1.2.0 and `Stampd.Infrastructure.Postgres` 1.2.0 shipped at migration V11 — they were missing the V12 epoch-sort migration that the SQLite provider got at v1.2. v1.3 ships both V12 and V13 catch-up migrations on those providers. Anyone running SqlServer or Postgres in production on v1.2.0 will see a SCHEMA mismatch on startup at v1.3 because the entity model declares `EpochMs` columns that don't exist in their database.
+
+Apply both migrations as part of the upgrade:
+
+```bash
+dotnet ef database update --project src/Stampd.Infrastructure.SqlServer
+dotnet ef database update --project src/Stampd.Infrastructure.Postgres
+```
+
+Each provider has its own `IDesignTimeDbContextFactory<StampdDbContext>` so no `--startup-project` is required. Both V12 and V13 include backfill SQL (`DATEDIFF_BIG` on SqlServer, `EXTRACT(EPOCH FROM ...) * 1000` on Postgres) — existing rows get their epoch columns populated in the same transaction as the column ADD. SQLite-only deployments need only V13.
+
+#### 2. `GET /api/signing-requests` response shape changed
+
+v1.2 returned a raw array; v1.3 returns a paged envelope. The URL and query-string surface are additive (`page` and `pageSize` are optional), but adopters parsing the response need to read `items`:
+
+```diff
+- response: SigningRequestSummary[]
++ response: { items: SigningRequestSummary[], total, page, pageSize, totalPages }
+```
+
+The in-tree Blazor UI was updated in lockstep. Direct API consumers (cURL pipelines, Postman collections, custom dashboards) should add `.items[]` to their post-processing.
+
+#### 3. OTP rate limit + lockout defaults activate automatically
+
+`EmailOtpProvider` and `SmsOtpProvider` now enforce a 5-per-15-minute initiate rate limit per identifier and a 5-failed-attempt lockout per challenge, with no opt-in required. This is a security improvement, but adopters who have their own upstream rate limiting may want to disable Stampd's by setting the new options to `0`:
+
+```
+Stampd:Identity:EmailOtp:InitiatesPerWindowMax=0
+Stampd:Identity:EmailOtp:MaxFailedAttempts=0
+```
+
+(Same keys under `Stampd:Identity:SmsOtp:*`.) Setting either to `0` disables the corresponding gate. NOT recommended for production unless an upstream gateway is doing equivalent work.
+
+#### 4. BLTA signing now makes 3 TSA round-trips per signature
+
+Up from 2 in v1.2. The third call is the new PAdES Document Timestamp (Part 4 carrier). If your TSA quota is tight, plan accordingly — or target `B-LT` (1 round-trip + revocation gather) instead of `B-LTA` for documents that don't strictly need the long-term archive anchor.
+
+#### 5. Pre-existing recursive `ApplyBearer` bug fixed
+
+`DesignerApiClient.ApplyBearer` had a v1.2 bug that would stack-overflow on any non-empty bearer token. v1.3 fixes it. No adopter action needed if you were running with `AutoAuth=true` (Development); production-mode adopters using manual JWT entry could not have functioned with v1.2 anyway.
 
 ## Pre-release flow
 
