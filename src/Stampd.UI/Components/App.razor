@@ -4,8 +4,23 @@
     helpers.
 *@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
+    @* v2.0 fix — restore the persisted theme BEFORE the first paint so navigation
+       doesn't flash light then snap to dark. Removed the hardcoded data-theme="light"
+       from the <html> tag (it was winning on every server-rendered page transition).
+       Inline early so it runs even before site.css loads. *@
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('stampd-theme');
+                if (t !== 'dark' && t !== 'light') { t = 'light'; }
+                document.documentElement.setAttribute('data-theme', t);
+            } catch (_) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />

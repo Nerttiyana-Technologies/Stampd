@@ -3,6 +3,7 @@
 @inject DesignerApiClient Api
 @inject IConfiguration Config
 @inject IHostEnvironment HostEnv
+@inject CurrentUserService CurrentUser
 
 <PageTitle>Signing requests — Stampd</PageTitle>
 
@@ -20,6 +21,117 @@
         <DesignerAuthBar @ref="_authBar" OnTokenChanged="OnTokenChanged" />
     }
 
+    <!-- v2.0 Slice B — collapsible filter panel. Closed by default so the page looks
+         the same as v1.3 on first load; opens on click to reveal the status chip
+         group, sender/recipient text inputs, date range, and sort selector. -->
+    <section class="stampd-card" style="padding:0.85rem 1.1rem;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+            <button type="button"
+                    class="stampd-btn stampd-btn--ghost"
+                    style="padding:0.35rem 0.85rem; font-size:0.86rem;"
+                    @onclick="() => _filtersOpen = !_filtersOpen">
+                @(_filtersOpen ? "▾" : "▸") Filters
+                @if (HasActiveFilters)
+                {
+                    <span class="stampd-chip stampd-chip--accent" style="margin-left:0.5rem; font-size:0.7rem;">Active</span>
+                }
+            </button>
+            <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.84rem; color: var(--stampd-muted);">
+                <label for="sort-select">Sort by</label>
+                <select id="sort-select"
+                        class="stampd-auth-input"
+                        style="width:auto; padding:0.3rem 0.5rem; font-size:0.84rem;"
+                        value="@($"{_sortBy}|{_direction}")"
+                        @onchange="OnSortChangedAsync">
+                    @foreach (var opt in SortOptions)
+                    {
+                        <option value="@($"{opt.Value}|desc")">@opt.Label (newest first)</option>
+                        <option value="@($"{opt.Value}|asc")">@opt.Label (oldest first)</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        @if (_filtersOpen)
+        {
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:0.85rem; margin-top:1rem; padding-top:0.85rem; border-top:1px solid var(--stampd-border);">
+                <!-- Status chips -->
+                <div style="grid-column: 1 / -1;">
+                    <div class="signer-field-label">Status</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:0.35rem; margin-top:0.3rem;">
+                        @foreach (var status in StatusOptions)
+                        {
+                            var active = _selectedStatuses.Contains(status);
+                            <button type="button"
+                                    class="stampd-chip @(active ? "stampd-chip--accent" : "")"
+                                    style="cursor:pointer; border:1px solid var(--stampd-border); padding:0.25rem 0.65rem;"
+                                    @onclick="() => ToggleStatusAsync(status)">
+                                @status
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <!-- Sender / Recipient text inputs -->
+                <div>
+                    <label class="signer-field-label" for="sender-filter">Sender email</label>
+                    <input id="sender-filter"
+                           class="stampd-auth-input"
+                           type="email"
+                           placeholder="sender@example.com"
+                           @bind="_senderEmailFilter"
+                           @bind:event="oninput"
+                           @onblur="ApplyFiltersAsync" />
+                </div>
+                <div>
+                    <label class="signer-field-label" for="recipient-filter">Recipient email</label>
+                    <input id="recipient-filter"
+                           class="stampd-auth-input"
+                           type="email"
+                           placeholder="alice@example.com"
+                           @bind="_recipientEmailFilter"
+                           @bind:event="oninput"
+                           @onblur="ApplyFiltersAsync" />
+                </div>
+
+                <!-- Dispatched date range -->
+                <div>
+                    <label class="signer-field-label" for="dispatched-from">Dispatched from</label>
+                    <input id="dispatched-from"
+                           class="stampd-auth-input"
+                           type="date"
+                           @bind="_dispatchedFromFilter"
+                           @onblur="ApplyFiltersAsync" />
+                </div>
+                <div>
+                    <label class="signer-field-label" for="dispatched-to">Dispatched to</label>
+                    <input id="dispatched-to"
+                           class="stampd-auth-input"
+                           type="date"
+                           @bind="_dispatchedToFilter"
+                           @onblur="ApplyFiltersAsync" />
+                </div>
+
+                <!-- Action row -->
+                <div style="grid-column: 1 / -1; display:flex; gap:0.5rem; justify-content:flex-end; margin-top:0.25rem;">
+                    @if (HasActiveFilters)
+                    {
+                        <button type="button"
+                                class="stampd-btn stampd-btn--ghost"
+                                @onclick="ClearFiltersAsync">
+                            Clear filters
+                        </button>
+                    }
+                    <button type="button"
+                            class="stampd-btn stampd-btn--primary"
+                            @onclick="ApplyFiltersAsync">
+                        Apply
+                    </button>
+                </div>
+            </div>
+        }
+    </section>
+
     <section class="stampd-card">
         @if (_loading)
         {
@@ -36,14 +148,38 @@
         else if (_page.Items.Count == 0)
         {
             <p class="stampd-page-subtitle">
-                No signing requests yet. Open a template in the
-                <a href="/designer">designer</a> and click <strong>Send</strong> to dispatch one.
+                @if (HasActiveFilters)
+                {
+                    <text>No signing requests match the current filters. </text>
+                    <button type="button"
+                            class="stampd-btn stampd-btn--ghost"
+                            style="padding:0.25rem 0.6rem; font-size:0.82rem; margin-left:0.5rem;"
+                            @onclick="ClearFiltersAsync">
+                        Clear filters
+                    </button>
+                }
+                else
+                {
+                    <text>
+                        No signing requests yet. Open a template in the
+                        <a href="/designer">designer</a> and click <strong>Send</strong> to dispatch one.
+                    </text>
+                }
             </p>
         }
         else
         {
             <div class="stampd-template-table">
-                <div class="stampd-request-row stampd-template-head">
+                <div class="stampd-request-row stampd-template-head" style="@(IsAdmin ? "grid-template-columns: 36px 2fr 1.5fr 1fr 1.2fr auto;" : "")">
+                    @if (IsAdmin)
+                    {
+                        <div style="display:flex; align-items:center; justify-content:center;">
+                            <input type="checkbox"
+                                   aria-label="Select all on this page"
+                                   checked="@AllVisibleSelected"
+                                   @onchange="OnToggleAllVisible" />
+                        </div>
+                    }
                     <div>Subject / Template</div>
                     <div>Recipient</div>
                     <div>Status</div>
@@ -54,7 +190,17 @@
                 {
                     var firstRecipient = r.Recipients.FirstOrDefault();
                     var isCompleted = string.Equals(r.Status, "Completed", StringComparison.OrdinalIgnoreCase);
-                    <div class="stampd-request-row">
+                    <div class="stampd-request-row" style="@(IsAdmin ? "grid-template-columns: 36px 2fr 1.5fr 1fr 1.2fr auto;" : "")">
+                        @if (IsAdmin)
+                        {
+                            var requestId = r.Id;
+                            <div style="display:flex; align-items:center; justify-content:center;">
+                                <input type="checkbox"
+                                       aria-label="Select request"
+                                       checked="@_selectedRequestIds.Contains(requestId)"
+                                       @onchange="() => ToggleRequestSelection(requestId)" />
+                            </div>
+                        }
                         <div>
                             <div style="font-weight:600;">@r.Subject</div>
                             @if (!string.IsNullOrWhiteSpace(r.TemplateName))
@@ -83,30 +229,47 @@
                         <div style="font-size:0.85rem; color: var(--stampd-muted);">
                             @r.CreatedAtUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
                         </div>
-                        <div style="display:flex; gap:0.4rem; justify-content:flex-end; align-items:center;">
-                            <a class="stampd-btn stampd-btn--ghost"
+                        @* Compact icon-button row — keeps the action column tight so the
+                           Dispatched column doesn't overflow. Title attributes carry the
+                           full label for tooltip-on-hover. *@
+                        <div style="display:flex; gap:0.35rem; justify-content:flex-end; align-items:center;">
+                            <a class="stampd-icon-btn"
                                href="@($"/designer/requests/{r.Id}")"
+                               aria-label="Details"
                                title="See per-recipient status, timestamps, and audit trail">
-                                Details
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                </svg>
                             </a>
                             @if (isCompleted)
                             {
-                                <a class="stampd-btn stampd-btn--primary"
+                                <a class="stampd-icon-btn stampd-icon-btn--primary"
                                    href="@SignedDocumentUrl(r.Id)"
                                    target="_blank"
                                    rel="noopener"
+                                   aria-label="Open signed PDF"
                                    title="Open the sealed PDF in a new tab">
-                                    Open
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="7 10 12 15 17 10"></polyline>
+                                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                                    </svg>
                                 </a>
                             }
                             else if (firstRecipient?.AccessUrl is { } url)
                             {
-                                <a class="stampd-btn stampd-btn--ghost"
+                                <a class="stampd-icon-btn"
                                    href="@url"
                                    target="_blank"
                                    rel="noopener"
+                                   aria-label="Recipient signing link"
                                    title="Open the recipient signing link">
-                                    Recipient link
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                                    </svg>
                                 </a>
                             }
                         </div>
@@ -152,6 +315,42 @@
             </div>
         }
     </section>
+
+    <!-- v2.0 Slice D — floating bulk-action bar. Renders only when an admin has at
+         least one request selected. Position is fixed-bottom so the page can scroll
+         beneath it without losing the action context. -->
+    @if (IsAdmin && _selectedRequestIds.Count > 0)
+    {
+        <div style="position:fixed; bottom:1.25rem; left:50%; transform:translateX(-50%); background: var(--stampd-surface); border:1px solid var(--stampd-border); border-radius:12px; padding:0.75rem 1.1rem; box-shadow:0 6px 20px rgba(0,0,0,0.15); display:flex; align-items:center; gap:0.75rem; z-index:1000;">
+            <span style="font-size:0.88rem; font-weight:600;">@_selectedRequestIds.Count selected</span>
+            <button type="button"
+                    class="stampd-btn stampd-btn--ghost"
+                    @onclick="ClearBulkSelection">
+                Clear
+            </button>
+            <button type="button"
+                    class="stampd-btn"
+                    style="background:#dc2626; color:white; border-color:#dc2626;"
+                    disabled="@_bulkInFlight"
+                    @onclick="StartBulkVoidAsync">
+                @(_bulkInFlight ? "Voiding…" : "Void selected")
+            </button>
+            <button type="button"
+                    class="stampd-btn stampd-btn--ghost"
+                    disabled="@(_bulkInFlight || !AnyResendableSelected)"
+                    title="@(AnyResendableSelected ? "Resend invitation to non-signed recipients on the selected requests" : "No selected request has recipients in Invited or Viewed state.")"
+                    @onclick="StartBulkResendAsync">
+                @(_bulkInFlight ? "Sending…" : "Resend invitation")
+            </button>
+        </div>
+    }
+
+    @if (_bulkResultMessage is not null)
+    {
+        <div style="position:fixed; bottom:5rem; left:50%; transform:translateX(-50%); padding:0.75rem 1rem; background: var(--stampd-surface-alt); border:1px solid var(--stampd-border); border-radius:8px; font-size:0.85rem; z-index:1000;">
+            @_bulkResultMessage
+        </div>
+    }
 </div>
 
 @code {
@@ -165,6 +364,55 @@
     private int _pageNumber = 1;
     private int _pageSize = 25;
     private bool _loading;
+
+    // v2.0 Slice B — filter state. Each field corresponds to one UI control in the
+    // collapsible filter panel. ApplyFilter() builds a SigningRequestListFilter from
+    // these fields and resets to page 1 (so a filter change never lands on a
+    // phantom page).
+    private bool _filtersOpen;                    // collapsible drawer state
+    private readonly HashSet<string> _selectedStatuses = new(StringComparer.Ordinal);
+    private string _senderEmailFilter = string.Empty;
+    private string _recipientEmailFilter = string.Empty;
+    private DateTime? _dispatchedFromFilter;
+    private DateTime? _dispatchedToFilter;
+    private string _sortBy = "dispatched";
+    private string _direction = "desc";
+
+    // v2.0 Slice D — bulk-action state (admin only). _selectedRequestIds tracks the
+    // checkbox state across pagination; we deliberately persist the set when the user
+    // pages so multi-page selections work. _bulkInFlight gates the action buttons
+    // during the API call. _bulkResultMessage shows a transient toast-like notice
+    // after the bulk op completes.
+    private readonly HashSet<Guid> _selectedRequestIds = new();
+    private bool _bulkInFlight;
+    private string? _bulkResultMessage;
+
+    private bool IsAdmin => CurrentUser.IsInRole(Stampd.Core.Authorization.StampdRoles.Admin);
+
+    private bool AllVisibleSelected =>
+        _page is { Items.Count: > 0 } && _page.Items.All(r => _selectedRequestIds.Contains(r.Id));
+
+    /// <summary>True when at least one selected request has a recipient with an active access URL.</summary>
+    private bool AnyResendableSelected =>
+        _page is not null
+        && _page.Items.Any(r => _selectedRequestIds.Contains(r.Id)
+            && r.Recipients.Any(rc => !string.IsNullOrWhiteSpace(rc.AccessUrl)));
+
+    // Status options exposed to the filter UI. Mirror of the WebApi enum names —
+    // case-sensitive on the wire because the API uses Enum.TryParse with ignoreCase
+    // for tolerance, but the chip group needs canonical names to dedupe.
+    private static readonly string[] StatusOptions =
+    [
+        "Pending", "Sent", "InProgress", "Completed", "Voided", "Declined", "Expired",
+    ];
+
+    private static readonly (string Value, string Label)[] SortOptions =
+    [
+        ("dispatched", "Dispatched date"),
+        ("completed", "Completed date"),
+        ("status", "Status"),
+        ("subject", "Subject"),
+    ];
 
     private bool AutoAuth => HostEnv.IsDevelopment();
 
@@ -194,9 +442,9 @@
         {
             _page = await Api.ListSigningRequestsAsync(
                 _token,
-                templateId: null,
                 _pageNumber,
                 _pageSize,
+                BuildFilter(),
                 CancellationToken.None);
         }
         finally
@@ -204,6 +452,79 @@
             _loading = false;
         }
     }
+
+    /// <summary>
+    /// Snapshots the current filter UI state into a request DTO. Empty/default
+    /// fields stay null so the API URL stays compact when no filter is active.
+    /// </summary>
+    private SigningRequestListFilter BuildFilter() => new(
+        Status: _selectedStatuses.Count > 0 ? _selectedStatuses.ToList() : null,
+        TemplateId: null,
+        SenderEmail: string.IsNullOrWhiteSpace(_senderEmailFilter) ? null : _senderEmailFilter.Trim(),
+        RecipientEmail: string.IsNullOrWhiteSpace(_recipientEmailFilter) ? null : _recipientEmailFilter.Trim(),
+        DispatchedFrom: _dispatchedFromFilter is { } from
+            ? new DateTimeOffset(DateTime.SpecifyKind(from, DateTimeKind.Utc))
+            : null,
+        DispatchedTo: _dispatchedToFilter is { } to
+            ? new DateTimeOffset(DateTime.SpecifyKind(to, DateTimeKind.Utc))
+            : null,
+        SortBy: _sortBy,
+        Direction: _direction);
+
+    /// <summary>
+    /// Toggles a status in the multi-select chip group, resets to page 1, refetches.
+    /// </summary>
+    private async Task ToggleStatusAsync(string status)
+    {
+        if (!_selectedStatuses.Add(status))
+        {
+            _selectedStatuses.Remove(status);
+        }
+        _pageNumber = 1;
+        await LoadAsync();
+    }
+
+    /// <summary>Sort-selector change → reset to page 1, refetch.</summary>
+    private async Task OnSortChangedAsync(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString() ?? "dispatched";
+        // Format is "sortBy|direction" (e.g. "completed|asc") — single-select picker
+        // packs both into one option so the user gets one click instead of two.
+        var parts = raw.Split('|', 2);
+        _sortBy = parts[0];
+        _direction = parts.Length == 2 ? parts[1] : "desc";
+        _pageNumber = 1;
+        await LoadAsync();
+    }
+
+    /// <summary>Apply text/date filters (called on input blur or Apply button).</summary>
+    private async Task ApplyFiltersAsync()
+    {
+        _pageNumber = 1;
+        await LoadAsync();
+    }
+
+    /// <summary>Reset every filter field back to defaults and refetch.</summary>
+    private async Task ClearFiltersAsync()
+    {
+        _selectedStatuses.Clear();
+        _senderEmailFilter = string.Empty;
+        _recipientEmailFilter = string.Empty;
+        _dispatchedFromFilter = null;
+        _dispatchedToFilter = null;
+        _sortBy = "dispatched";
+        _direction = "desc";
+        _pageNumber = 1;
+        await LoadAsync();
+    }
+
+    /// <summary>True when at least one filter is active — drives the "active filter" badge.</summary>
+    private bool HasActiveFilters =>
+        _selectedStatuses.Count > 0
+        || !string.IsNullOrWhiteSpace(_senderEmailFilter)
+        || !string.IsNullOrWhiteSpace(_recipientEmailFilter)
+        || _dispatchedFromFilter is not null
+        || _dispatchedToFilter is not null;
 
     private async Task PrevPageAsync()
     {
@@ -267,4 +588,104 @@
         "Voided" or "Declined" or "Expired" => "stampd-chip--danger",
         _ => "stampd-chip--accent",
     };
+
+    // ---- v2.0 Slice D bulk-action handlers ----
+
+    private void ToggleRequestSelection(Guid id)
+    {
+        if (!_selectedRequestIds.Add(id))
+        {
+            _selectedRequestIds.Remove(id);
+        }
+    }
+
+    private void OnToggleAllVisible(ChangeEventArgs e)
+    {
+        if (_page is null) return;
+        var checkedNow = e.Value is bool b && b;
+        foreach (var item in _page.Items)
+        {
+            if (checkedNow) _selectedRequestIds.Add(item.Id);
+            else _selectedRequestIds.Remove(item.Id);
+        }
+    }
+
+    private void ClearBulkSelection()
+    {
+        _selectedRequestIds.Clear();
+        _bulkResultMessage = null;
+    }
+
+    private async Task StartBulkVoidAsync()
+    {
+        if (_selectedRequestIds.Count == 0) return;
+
+        _bulkInFlight = true;
+        _bulkResultMessage = null;
+        try
+        {
+            var ids = _selectedRequestIds.ToList();
+            var result = await Api.BulkVoidAsync(string.Empty, ids, reason: "Voided in bulk by admin", CancellationToken.None);
+            if (result is null)
+            {
+                _bulkResultMessage = "Bulk void rejected by the API (HTTP error).";
+                return;
+            }
+            _bulkResultMessage = $"Voided {result.Succeeded}/{result.Succeeded + result.Failed} requests.";
+            _selectedRequestIds.Clear();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _bulkResultMessage = ex.Message;
+        }
+        finally
+        {
+            _bulkInFlight = false;
+        }
+    }
+
+    private async Task StartBulkResendAsync()
+    {
+        if (_selectedRequestIds.Count == 0 || _page is null) return;
+
+        // Collect every recipient id with an active access URL across the selected
+        // requests — those are the ones the workflow's ResendInvitationAsync accepts
+        // (Invited or Viewed state). Recipients who've already signed are filtered
+        // out client-side so the API doesn't waste cycles on them.
+        var recipientIds = _page.Items
+            .Where(r => _selectedRequestIds.Contains(r.Id))
+            .SelectMany(r => r.Recipients
+                .Where(rc => !string.IsNullOrWhiteSpace(rc.AccessUrl))
+                .Select(rc => rc.Id))
+            .Distinct()
+            .ToList();
+
+        if (recipientIds.Count == 0)
+        {
+            _bulkResultMessage = "Selected requests have no resend-eligible recipients.";
+            return;
+        }
+
+        _bulkInFlight = true;
+        _bulkResultMessage = null;
+        try
+        {
+            var result = await Api.BulkResendAsync(string.Empty, recipientIds, CancellationToken.None);
+            if (result is null)
+            {
+                _bulkResultMessage = "Bulk resend rejected by the API (HTTP error).";
+                return;
+            }
+            _bulkResultMessage = $"Resent invitations to {result.Succeeded}/{result.Succeeded + result.Failed} recipients.";
+        }
+        catch (Exception ex)
+        {
+            _bulkResultMessage = ex.Message;
+        }
+        finally
+        {
+            _bulkInFlight = false;
+        }
+    }
 }

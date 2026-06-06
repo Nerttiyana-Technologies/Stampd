@@ -58,7 +58,17 @@ internal static class Program
 
         Console.WriteLine($"[1/7] Loading private key from {pfxPath}");
 
-        using var pfx = X509CertificateLoader.LoadPkcs12FromFile(pfxPath, pfxPassword);
+        // macOS-specific gotcha: when .NET loads a PFX without explicit storage flags,
+        // the private key gets parked in the system Keychain with non-exportable
+        // attributes, and ExportPkcs8PrivateKey throws "The key does not permit being
+        // exported." Exportable unlocks the export call at step [4/7]. EphemeralKeySet
+        // would be cleaner but isn't supported by X509CertificateLoader on macOS.
+        // PFXs are written to a temp file by the Keychain importer and cleaned up when
+        // the X509Certificate2 is disposed.
+        using var pfx = X509CertificateLoader.LoadPkcs12FromFile(
+            pfxPath,
+            pfxPassword,
+            keyStorageFlags: X509KeyStorageFlags.Exportable);
         using var rsa = pfx.GetRSAPrivateKey()
             ?? Fail<RSA>("PKCS#12 does not contain an RSA private key (ECDSA / DSA not supported).");
 

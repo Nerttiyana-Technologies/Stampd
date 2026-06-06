@@ -68,6 +68,15 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.Property<string>("UserAgent")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
+                    b.Property<string>("ActorRole")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ActorUserId")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+
 
                     b.HasKey("Id");
 
@@ -78,6 +87,8 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.HasIndex("TenantId", "EventType");
 
                     b.HasIndex("TenantId", "OccurredAtUtc");
+                    b.HasIndex("TenantId", "ActorUserId", "OccurredAtUtc");
+
 
                     b.ToTable("AuditEvents", (string)null);
                 });
