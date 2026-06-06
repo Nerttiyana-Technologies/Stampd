@@ -74,8 +74,12 @@ public sealed class PadesBLtaTests
         Assert.NotNull(signed);
         Assert.True(signed.Length > 0);
 
-        // Two TSA round-trips: signature TST + archive TST.
-        Assert.Equal(2, stubTsa.CallCount);
+        // Three TSA round-trips for v1.3 B-LTA:
+        //   1. Signature TST (B-T anchor inside the original signer's CMS)
+        //   2. CMS-level archive-time-stamp-v3 (Part 2 anchor; strict ATSHashIndexV3
+        //      imprint per v1.3 #131)
+        //   3. PAdES /DocTimeStamp signature dict (Part 4 anchor per v1.3 #132)
+        Assert.Equal(3, stubTsa.CallCount);
 
         // Both the B-T attribute and the B-LTA archive attribute must be present on the
         // SignerInfo's unsigned-attributes table.
@@ -223,7 +227,12 @@ public sealed class PadesBLtaTests
     /// reaching out to a real TSA over the network — keeping the test deterministic and
     /// offline.
     /// </summary>
-    private sealed class InProcessStubTsaProvider : ITimestampAuthorityProvider
+    /// <remarks>
+    /// <c>public</c> (not <c>private</c>) so PadesDocTimeStampTests can reuse the same
+    /// stub. A future cleanup is to extract this to <c>tests/.../Internal/</c> alongside
+    /// the other shared test fixtures.
+    /// </remarks>
+    public sealed class InProcessStubTsaProvider : ITimestampAuthorityProvider
     {
         private readonly X509Certificate2 _tsaCert;
         private readonly BcX509Certificate _bcTsaCert;

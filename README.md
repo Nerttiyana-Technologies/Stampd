@@ -183,7 +183,12 @@ Env-var form: `Stampd__Email__Smtp__Host`, `Stampd__Email__Smtp__Port`, etc.
 | Drag-to-move + resize handles in designer | — | — | ✅ |
 | True PDF incremental update for strict ETSI B-LT | — | — | ✅ |
 
-† **B-LTA caveat.** Stampd implements B-LTA as a CMS `id-aa-ets-archiveTimestampV3` unsigned attribute (OID `1.2.840.113549.1.9.16.2.48`) carrying a second TSA assertion alongside the strict ETSI **`id-aa-ats-hash-index-v3`** attribute (OID `1.2.840.113549.1.9.16.2.51`, RFC 7026 / ETSI TS 101 733 §6.4.3) — the hash index locks in exactly which certs, CRLs, and existing unsigned attrs the archive TST witnessed, so any future addition to the CMS can't silently invalidate the timestamp. **v1.3 #131** ✅ replaced the v1.2 pragmatic SignerInfo-DER imprint with this spec-compliant computation. A separate v1.3 item (**#132**, in progress) tracks adding the PAdES Document Timestamp (an incremental-update `/Type /DocTimeStamp` signature dictionary) as the alternative carrier ETSI EN 319 142-1 prefers for PAdES specifically.
+† **B-LTA carrier — belt + suspenders.** Stampd emits BOTH long-term archive carriers for B-LTA, so adopters get maximum verifier interop:
+>
+> 1. **CMS `id-aa-ets-archiveTimestampV3` unsigned attribute** (OID `1.2.840.113549.1.9.16.2.48`) carrying a second TSA assertion alongside the strict ETSI **`id-aa-ats-hash-index-v3`** attribute (OID `1.2.840.113549.1.9.16.2.51`, RFC 7026 / ETSI TS 101 733 §6.4.3) — Part 2 era carrier. The hash index locks in which certs, CRLs, and existing unsigned attrs the archive TST witnessed, so future additions to the CMS can't silently invalidate the timestamp. **v1.3 #131** ✅ replaced the v1.2 pragmatic SignerInfo-DER imprint with this spec-compliant computation.
+> 2. **PAdES Document Timestamp** (`/Type /DocTimeStamp` signature dictionary with `/SubFilter /ETSI.RFC3161`) — Part 4 carrier per ETSI EN 319 142-1 §5.4. Appended as a separate strictly-additive incremental update revision past the DSS, with its own `/ByteRange` covering the entire prior PDF. **v1.3 #132** ✅ adds this in parallel to the CMS carrier.
+>
+> Cost: B-LTA signing now makes **3 TSA round-trips** (signature TST + CMS archive TST + Document Timestamp). Adopters who only need short-term verifiability should target B-T (1 round-trip) or B-LT (1 round-trip + revocation gather).
 
 ## Roadmap
 

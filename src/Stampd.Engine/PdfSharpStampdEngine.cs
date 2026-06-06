@@ -72,13 +72,13 @@ public sealed class PdfSharpStampdEngine : IStampdEngine
             revocationData = await fetcher.GatherAsync(signingCert, cancellationToken).ConfigureAwait(false);
         }
 
-        return SignCore(request, revocationData, cancellationToken);
+        return await SignCoreAsync(request, revocationData, cancellationToken).ConfigureAwait(false);
     }
 
     private static bool ShouldEmbedRevocationInfo(PAdESLevel target)
         => target == PAdESLevel.BLT || target == PAdESLevel.BLTA;
 
-    private SignedDocument SignCore(
+    private async Task<SignedDocument> SignCoreAsync(
         SignatureRequest request,
         PadesRevocationData? revocationData,
         CancellationToken cancellationToken)
@@ -176,6 +176,20 @@ public sealed class PdfSharpStampdEngine : IStampdEngine
         if (revocationData is not null && !revocationData.IsEmpty)
         {
             signedPdf = PadesIncrementalUpdateWriter.AppendDss(signedPdf, revocationData);
+        }
+
+        // ---- Phase 4: append PAdES Document Timestamp for B-LTA (v1.3 #132) ----
+        // ETSI EN 319 142-1 §5.4 defines B-LTA conformance via Document Timestamps —
+        // a separate /Type /DocTimeStamp signature dict appended as another incremental
+        // update revision past the DSS. This complements the v1.2 CMS-level archive-TST
+        // (whose imprint is now strict per #131); together they cover both PAdES Part 2
+        // and Part 4 verifiers. Skipped silently if no TSA is configured — adopters can
+        // still target B-T or B-LT without a TSA.
+        if (request.Sealing.TargetLevel == PAdESLevel.BLTA && effectiveTsa is not null)
+        {
+            signedPdf = await PadesDocTimeStampWriter
+                .AppendAsync(signedPdf, effectiveTsa, hashAlgorithm, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         var hashHex = Convert.ToHexString(SHA256.HashData(signedPdf)).ToLowerInvariant();
