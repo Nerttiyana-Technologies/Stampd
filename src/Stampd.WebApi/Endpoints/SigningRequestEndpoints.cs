@@ -132,6 +132,14 @@ internal static class SigningRequestEndpoints
         [Microsoft.AspNetCore.Mvc.FromQuery] Guid? templateId,
         [Microsoft.AspNetCore.Mvc.FromQuery] int? page,
         [Microsoft.AspNetCore.Mvc.FromQuery] int? pageSize,
+        // v2.0 Slice B — filter params (all optional, all additive).
+        [Microsoft.AspNetCore.Mvc.FromQuery] string? status,
+        [Microsoft.AspNetCore.Mvc.FromQuery] string? senderEmail,
+        [Microsoft.AspNetCore.Mvc.FromQuery] string? recipientEmail,
+        [Microsoft.AspNetCore.Mvc.FromQuery] DateTimeOffset? dispatchedFrom,
+        [Microsoft.AspNetCore.Mvc.FromQuery] DateTimeOffset? dispatchedTo,
+        [Microsoft.AspNetCore.Mvc.FromQuery] string? sortBy,
+        [Microsoft.AspNetCore.Mvc.FromQuery] string? direction,
         [FromServices] StampdDbContext db,
         [FromServices] WorkflowEmailOptions emailOptions,
         HttpContext http,
@@ -150,9 +158,66 @@ internal static class SigningRequestEndpoints
         var effectivePage = Math.Max(1, page.GetValueOrDefault(1));
 
         var query = db.SigningRequests.AsQueryable();
+
+        // ---- Filters ----
         if (templateId is not null)
         {
             query = query.Where(r => r.DocumentTemplateId == templateId.Value);
+        }
+
+        // status accepts a comma-separated list so the UI's multi-select chip group
+        // can pack multiple statuses into one query string. Empty / invalid entries
+        // are silently dropped — an unknown status doesn't fail the request.
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            var statuses = status
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(s => Enum.TryParse<SigningRequestStatus>(s, ignoreCase: true, out var parsed)
+                    ? (SigningRequestStatus?)parsed
+                    : null)
+                .Where(s => s.HasValue)
+                .Select(s => s!.Value)
+                .ToArray();
+
+            if (statuses.Length > 0)
+            {
+                query = query.Where(r => statuses.Contains(r.Status));
+            }
+        }
+
+        // senderEmail / recipientEmail use exact-match (case-sensitive) for the same
+        // EF Core 10 SQLite reason as v1.3 #136 — string.ToLower() doesn't translate
+        // portably. The UI auto-lowercases when storing CreatedBy / Recipient.Email so
+        // exact match is correct in practice.
+        if (!string.IsNullOrWhiteSpace(senderEmail))
+        {
+            var sender = senderEmail.Trim();
+            query = query.Where(r => r.CreatedBy == sender);
+        }
+
+        if (!string.IsNullOrWhiteSpace(recipientEmail))
+        {
+            var recip = recipientEmail.Trim();
+            // EF translates Any on a nav collection to EXISTS — server-side, no Recipients
+            // hydration cost.
+            query = query.Where(r => r.Recipients.Any(rc => rc.Email == recip));
+        }
+
+        // Date range on the epoch shadow column (same v1.3 #133 trick that makes the
+        // newest-first ORDER BY index-covered). Compare against the supplied UTC
+        // boundary's epoch ms; for the "to" side we extend to end-of-day so a caller
+        // passing 2026-06-30 gets all of that day, not just midnight.
+        if (dispatchedFrom is not null)
+        {
+            var fromMs = dispatchedFrom.Value.ToUnixTimeMilliseconds();
+            query = query.Where(r => r.CreatedAtUtcEpochMs >= fromMs);
+        }
+
+        if (dispatchedTo is not null)
+        {
+            var toEndOfDay = dispatchedTo.Value.UtcDateTime.Date.AddDays(1).AddTicks(-1);
+            var toMs = new DateTimeOffset(toEndOfDay, TimeSpan.Zero).ToUnixTimeMilliseconds();
+            query = query.Where(r => r.CreatedAtUtcEpochMs <= toMs);
         }
 
         // Count first (cheap on the indexed column) so we can return totalPages even
@@ -160,14 +225,43 @@ internal static class SigningRequestEndpoints
         // EF translates this to SELECT COUNT(*) which doesn't need the joins.
         var total = await query.CountAsync(ct).ConfigureAwait(false);
 
-        // v1.3 #133: server-side ORDER BY on the epoch shadow column. SQLite can sort
-        // a long natively; the (TenantId, CreatedAtUtcEpochMs) composite index covers
-        // tenant-scoped newest-first listing. v1.3 #158: window with Skip+Take instead
-        // of the legacy hard cap. The Include calls hang off the windowed query so we
-        // only hydrate Recipients + DocumentTemplate for the rows we're returning.
+        // ---- Sort ----
+        // sortBy defaults to "dispatched" (v1.3 #158's newest-first); direction defaults
+        // to "desc". Unknown values fall back to defaults silently — over-tolerance is
+        // better than a 400 here because a stale UI bookmark shouldn't break the page.
+        var normalizedSort = (sortBy ?? "dispatched").ToLowerInvariant();
+        var ascending = string.Equals(direction, "asc", StringComparison.OrdinalIgnoreCase);
+
+        IQueryable<SigningRequest> orderedQuery = normalizedSort switch
+        {
+            // v2.0 known limitation — EF Core 10's SQLite provider doesn't translate
+            // ORDER BY on a DateTimeOffset? column (the Doc 16 / v1.2 #115 family of
+            // bugs). The proper fix is a CompletedAtUtcEpochMs shadow column with a
+            // V15 migration (same pattern as v1.3 #133); until that ships, route the
+            // "completed" sort through the existing CreatedAtUtcEpochMs column. The
+            // two are highly correlated in practice (a workflow dispatched on day N
+            // is almost always completed within a few days), so the sort gives
+            // intuitively-right results for the common case. Adopters needing a
+            // strict completed-date sort should target v2.1+ where V15 lands.
+            "completed" => ascending
+                ? query.OrderBy(r => r.CreatedAtUtcEpochMs)
+                : query.OrderByDescending(r => r.CreatedAtUtcEpochMs),
+            "status" => ascending
+                ? query.OrderBy(r => r.Status).ThenByDescending(r => r.CreatedAtUtcEpochMs)
+                : query.OrderByDescending(r => r.Status).ThenByDescending(r => r.CreatedAtUtcEpochMs),
+            "subject" => ascending
+                ? query.OrderBy(r => r.Subject).ThenByDescending(r => r.CreatedAtUtcEpochMs)
+                : query.OrderByDescending(r => r.Subject).ThenByDescending(r => r.CreatedAtUtcEpochMs),
+            _ /* dispatched */ => ascending
+                ? query.OrderBy(r => r.CreatedAtUtcEpochMs)
+                : query.OrderByDescending(r => r.CreatedAtUtcEpochMs),
+        };
+
+        // v1.3 #158: window with Skip+Take instead of the legacy hard cap. The Include
+        // calls hang off the windowed query so we only hydrate Recipients +
+        // DocumentTemplate for the rows we're returning.
         var skip = (effectivePage - 1) * effectivePageSize;
-        var requests = await query
-            .OrderByDescending(r => r.CreatedAtUtcEpochMs)
+        var requests = await orderedQuery
             .Skip(skip)
             .Take(effectivePageSize)
             .Include(r => r.Recipients).ThenInclude(p => p.Role)

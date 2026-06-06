@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @inject IHostEnvironment HostEnv
+@inject CurrentUserService CurrentUser
 
 <div class="stampd-app">
     <header class="stampd-topbar">
@@ -13,6 +14,10 @@
             <nav class="stampd-topbar-nav">
                 <a href="/designer">Designer</a>
                 <a href="/designer/requests">Requests</a>
+                @if (CurrentUser.IsInRole(Stampd.Core.Authorization.StampdRoles.Admin))
+                {
+                    <a href="/admin" title="Admin dashboard">Admin</a>
+                }
                 @if (HostEnv.IsDevelopment())
                 {
                     <a href="/demo">Demo</a>
@@ -23,6 +28,20 @@
             <div class="stampd-nav-spacer"></div>
 
             <div class="stampd-topbar-actions">
+                @* v2.0 — user chip on the right. In Dev shows the auto-mint subject +
+                   role badges; in non-Dev degrades to "Not signed in" until cookie
+                   auth lands. *@
+                @if (CurrentUser.IsAuthenticated)
+                {
+                    <div class="stampd-user-chip" title="Signed in as @CurrentUser.DisplayName">
+                        <span class="stampd-user-name">@CurrentUser.DisplayName</span>
+                        @foreach (var role in CurrentUser.Roles)
+                        {
+                            <span class="stampd-chip stampd-chip--accent" style="font-size:0.66rem; letter-spacing:0.05em;">@role</span>
+                        }
+                    </div>
+                }
+
                 @* Pure-JS toggle so it works on Static SSR pages without an interactive
                    render mode. Icon swaps in theme.js as the document attribute changes. *@
                 <button class="stampd-theme-toggle"

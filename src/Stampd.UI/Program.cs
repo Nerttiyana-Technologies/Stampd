@@ -44,13 +44,28 @@ if (builder.Environment.IsDevelopment())
 var apiBaseUrl = builder.Configuration["Stampd:Api:BaseUrl"] ?? "http://localhost:5070";
 builder.Services.AddHttpClient<StampdApiClient>(client => client.BaseAddress = new Uri(apiBaseUrl));
 
+// v2.0 — CurrentUserService is the single source of "who's signed in + what roles
+// they have" for Blazor pages. Lives outside the Dev-only block so non-Dev pages get
+// a working "Not signed in" surface that returns false for every IsInRole check.
+builder.Services.AddScoped<CurrentUserService>();
+
 if (builder.Environment.IsDevelopment())
 {
+    // v2.0 — Stampd:DevAuth:Roles is a comma-separated list (e.g. "Sender" or
+    // "Admin,Sender"). Default is Sender so the existing demo flow is unchanged; flip
+    // to "Admin" in appsettings.Development.json to test the new admin dashboard
+    // without restarting with code changes.
+    var rolesRaw = builder.Configuration["Stampd:DevAuth:Roles"] ?? "Sender";
+    var roles = rolesRaw
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .ToArray();
+
     builder.Services.AddSingleton(new DevTokenOptions
     {
         ApiBaseUrl = apiBaseUrl,
         Subject = builder.Configuration["Stampd:DevAuth:Subject"] ?? "designer-user",
         TenantId = builder.Configuration["Stampd:DevAuth:TenantId"],
+        Roles = roles,
     });
     // DevTokenProvider needs its own bare HttpClient to mint the initial token, otherwise
     // the DelegatingHandler below would call back into it recursively before the cache

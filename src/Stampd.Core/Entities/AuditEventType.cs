@@ -27,6 +27,8 @@ public enum AuditEventType
     RecipientSigned = 205,
     RecipientDeclined = 206,
     RecipientExpired = 207,
+    /// <summary>v2.0 Slice D — admin or sender re-sent the invitation email to this recipient.</summary>
+    RecipientInvitationResent = 208,
 
     DocumentSealed = 300,
     DocumentDownloaded = 301,

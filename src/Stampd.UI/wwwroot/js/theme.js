@@ -36,6 +36,38 @@
         apply(t);
     });
 
+    // Blazor enhanced-navigation PATCHES the <html> element's attributes against
+    // whatever the server rendered. The server doesn't know the user's theme
+    // (it lives in localStorage), so it sends <html lang="en"> with no data-theme,
+    // and Blazor strips our attribute on every page transition.
+    //
+    // Restore from localStorage after every enhanced-load. The 'enhancedload' DOM
+    // event is fired by blazor.web.js after each enhanced navigation completes.
+    function restoreFromStorage() {
+        try {
+            const stored = localStorage.getItem(KEY);
+            if (stored === 'dark' || stored === 'light') {
+                apply(stored);
+            }
+        } catch (_) { /* ignore */ }
+    }
+    document.addEventListener('enhancedload', restoreFromStorage);
+    // Also belt-and-braces against any path that wipes the attribute mid-session:
+    // if data-theme on <html> is ever removed/changed away from our stored value,
+    // put it back.
+    try {
+        const observer = new MutationObserver(function (mutations) {
+            for (const m of mutations) {
+                if (m.type !== 'attributes' || m.attributeName !== 'data-theme') continue;
+                const stored = localStorage.getItem(KEY);
+                if (stored !== 'dark' && stored !== 'light') return;
+                const current = document.documentElement.getAttribute('data-theme');
+                if (current !== stored) { apply(stored); }
+            }
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    } catch (_) { /* MutationObserver not supported — fall back to enhancedload only */ }
+
     window.stampdTheme = {
         set: apply,
         toggle: toggle,

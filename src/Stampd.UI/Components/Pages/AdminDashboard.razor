@@ -1,0 +1,424 @@
+@page "/admin"
+@rendermode InteractiveServer
+@inject DesignerApiClient Api
+@inject CurrentUserService CurrentUser
+@inject IHostEnvironment HostEnv
+@inject NavigationManager Navigation
+
+<PageTitle>Admin dashboard — Stampd</PageTitle>
+
+<div class="stampd-page">
+    <section class="stampd-hero">
+        <h1 class="stampd-hero-title">Admin dashboard</h1>
+        <p class="stampd-hero-sub">
+            Tenant-wide signing volume and template performance. v2.0 Slice A.
+        </p>
+    </section>
+
+    @if (!CurrentUser.IsInRole(Stampd.Core.Authorization.StampdRoles.Admin))
+    {
+        <section class="stampd-card">
+            <div class="signer-error">
+                The admin dashboard requires the <strong>Admin</strong> role.
+                @if (HostEnv.IsDevelopment())
+                {
+                    <text>
+                        Set <code>Stampd:DevAuth:Roles=Admin</code> in
+                        <code>appsettings.Development.json</code> and restart the UI to switch
+                        the dev user into the admin role.
+                    </text>
+                }
+            </div>
+        </section>
+    }
+    else if (_loading)
+    {
+        <section class="stampd-card">
+            <p class="stampd-page-subtitle">Loading…</p>
+        </section>
+    }
+    else if (_summary is null)
+    {
+        <section class="stampd-card">
+            <div class="signer-error">Failed to load the admin dashboard.</div>
+        </section>
+    }
+    else
+    {
+        <!-- Summary tiles -->
+        <section style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:0.85rem; margin-bottom:1rem;">
+            @{ var tile = "background: var(--stampd-surface); border:1px solid var(--stampd-border); border-radius:12px; padding:1rem 1.2rem; display:flex; flex-direction:column; gap:0.35rem;"; }
+            <div style="@tile">
+                <div class="signer-field-label">Total requests</div>
+                <div style="font-size:1.65rem; font-weight:700;">@_summary.Total</div>
+                <div style="font-size:0.78rem; color: var(--stampd-muted);">All time, tenant-wide</div>
+            </div>
+            <div style="@tile">
+                <div class="signer-field-label">Completed</div>
+                <div style="font-size:1.65rem; font-weight:700; color:#16a34a;">@_summary.Completed</div>
+                <div style="font-size:0.78rem; color: var(--stampd-muted);">@_summary.CompletionRatePercent.ToString("0.#")% completion rate</div>
+            </div>
+            <div style="@tile">
+                <div class="signer-field-label">In progress</div>
+                <div style="font-size:1.65rem; font-weight:700; color:#2b7fce;">@_summary.InProgress</div>
+                <div style="font-size:0.78rem; color: var(--stampd-muted);">Sent or partially signed</div>
+            </div>
+            <div style="@tile">
+                <div class="signer-field-label">Declined / voided / expired</div>
+                <div style="font-size:1.65rem; font-weight:700; color:#dc2626;">@_summary.Declined</div>
+                <div style="font-size:0.78rem; color: var(--stampd-muted);">Did not reach signed</div>
+            </div>
+        </section>
+
+        <!-- Trend chart -->
+        <section class="stampd-card">
+            <h2 class="stampd-card-title">Activity — last @(_trend?.WindowDays ?? 30) days</h2>
+            @if (_trend is null || _trend.Buckets.Count == 0)
+            {
+                <p class="stampd-page-subtitle">No activity in the window.</p>
+            }
+            else
+            {
+                @* Server-rendered SVG sparkline so we don't take a Chart.js dependency in
+                   the slice-A scope. Width 100% with viewBox so it scales. Dispatched is
+                   the navy line; completed is the blue line. *@
+                <div style="margin-top:0.75rem;">
+                    @{
+                        var maxVal = Math.Max(1, _trend.Buckets.Max(b => Math.Max(b.Dispatched, b.Completed)));
+                        var w = 100.0 / _trend.Buckets.Count;
+                    }
+                    <svg viewBox="0 0 100 30" preserveAspectRatio="none" style="width:100%; height:140px; border:1px solid var(--stampd-border); border-radius:8px; background: var(--stampd-surface-alt);">
+                        <!-- Dispatched line -->
+                        <polyline fill="none" stroke="#0b3c6e" stroke-width="0.5"
+                                  points="@string.Join(' ', _trend.Buckets.Select((b, i) => $"{(i + 0.5) * w:F2},{30 - (b.Dispatched * 30.0 / maxVal):F2}"))" />
+                        <!-- Completed line -->
+                        <polyline fill="none" stroke="#2b7fce" stroke-width="0.5" stroke-dasharray="0.6,0.6"
+                                  points="@string.Join(' ', _trend.Buckets.Select((b, i) => $"{(i + 0.5) * w:F2},{30 - (b.Completed * 30.0 / maxVal):F2}"))" />
+                    </svg>
+                    <div style="display:flex; gap:1rem; margin-top:0.5rem; font-size:0.78rem; color: var(--stampd-muted);">
+                        <span><span style="display:inline-block; width:18px; height:2px; background:#0b3c6e; vertical-align:middle; margin-right:6px;"></span>Dispatched</span>
+                        <span><span style="display:inline-block; width:18px; height:2px; background:#2b7fce; vertical-align:middle; margin-right:6px;"></span>Completed</span>
+                        <span style="margin-left:auto;">Peak: <strong style="color: var(--stampd-text);">@maxVal</strong> / day</span>
+                    </div>
+                </div>
+            }
+        </section>
+
+        <!-- Top templates -->
+        <section class="stampd-card">
+            <h2 class="stampd-card-title">Most-used templates</h2>
+            @if (_topTemplates is null || _topTemplates.Items.Count == 0)
+            {
+                <p class="stampd-page-subtitle">No templates with signing activity yet.</p>
+            }
+            else
+            {
+                <div class="stampd-template-table" style="margin-top:0.75rem;">
+                    <div class="stampd-request-row stampd-template-head" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
+                        <div>Template</div>
+                        <div>Requests</div>
+                        <div>Completed</div>
+                        <div>Completion rate</div>
+                    </div>
+                    @foreach (var t in _topTemplates.Items)
+                    {
+                        <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
+                            <div>
+                                <div style="font-weight:600;">@t.TemplateName</div>
+                                <div style="font-size:0.72rem; color: var(--stampd-muted); font-family: ui-monospace, monospace;">@t.TemplateId.ToString("N")[..8]</div>
+                            </div>
+                            <div>@t.Total</div>
+                            <div>@t.Completed</div>
+                            <div>
+                                <span class="stampd-chip @CompletionChipClass(t.CompletionRatePercent)">@t.CompletionRatePercent.ToString("0.#")%</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <!-- v2.0 Slice C — analytics. Three widgets driven by a single window selector. -->
+        <section class="stampd-card">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;">
+                <h2 class="stampd-card-title" style="margin-bottom:0;">Analytics</h2>
+                <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.84rem; color: var(--stampd-muted);">
+                    <label for="analytics-window">Window</label>
+                    <select id="analytics-window"
+                            class="stampd-auth-input"
+                            style="width:auto; padding:0.3rem 0.55rem; font-size:0.84rem;"
+                            value="@_analyticsDays"
+                            @onchange="OnAnalyticsWindowChangedAsync">
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Funnel -->
+            @if (_funnel is not null)
+            {
+                <div style="margin-top:1rem;">
+                    <div class="signer-field-label">Drop-off funnel</div>
+                    @{
+                        var maxStage = Math.Max(1, Math.Max(_funnel.Stages.Invited, Math.Max(_funnel.Stages.Viewed, _funnel.Stages.Signed)));
+                        string Bar(int v) => $"width:{(v * 100.0 / maxStage):F1}%;";
+                    }
+                    <div style="display:flex; flex-direction:column; gap:0.45rem; margin-top:0.5rem;">
+                        <div style="display:grid; grid-template-columns:120px 1fr auto; gap:0.5rem; align-items:center;">
+                            <span style="font-size:0.85rem;">Invited</span>
+                            <div style="background: var(--stampd-surface-alt); height:18px; border-radius:4px; overflow:hidden;">
+                                <div style="@Bar(_funnel.Stages.Invited) height:100%; background:#0b3c6e;"></div>
+                            </div>
+                            <strong style="font-size:0.86rem;">@_funnel.Stages.Invited</strong>
+                        </div>
+                        <div style="display:grid; grid-template-columns:120px 1fr auto; gap:0.5rem; align-items:center;">
+                            <span style="font-size:0.85rem;">Viewed</span>
+                            <div style="background: var(--stampd-surface-alt); height:18px; border-radius:4px; overflow:hidden;">
+                                <div style="@Bar(_funnel.Stages.Viewed) height:100%; background:#1a5698;"></div>
+                            </div>
+                            <strong style="font-size:0.86rem;">@_funnel.Stages.Viewed</strong>
+                        </div>
+                        <div style="display:grid; grid-template-columns:120px 1fr auto; gap:0.5rem; align-items:center;">
+                            <span style="font-size:0.85rem;">Signed</span>
+                            <div style="background: var(--stampd-surface-alt); height:18px; border-radius:4px; overflow:hidden;">
+                                <div style="@Bar(_funnel.Stages.Signed) height:100%; background:#16a34a;"></div>
+                            </div>
+                            <strong style="font-size:0.86rem;">@_funnel.Stages.Signed</strong>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:1rem; margin-top:0.6rem; font-size:0.8rem; color: var(--stampd-muted);">
+                        <span>Drop-off Invited → Viewed: <strong style="color: var(--stampd-text);">@_funnel.DropOff.InvitedToViewedPercent.ToString("0.#")%</strong></span>
+                        <span>Drop-off Viewed → Signed: <strong style="color: var(--stampd-text);">@_funnel.DropOff.ViewedToSignedPercent.ToString("0.#")%</strong></span>
+                        <span style="margin-left:auto;">Conversion: <strong style="color: var(--stampd-text);">@_funnel.ConversionRatePercent.ToString("0.#")%</strong></span>
+                    </div>
+                </div>
+            }
+
+            <!-- Identity verification metrics card -->
+            @if (_iv is not null)
+            {
+                <div style="margin-top:1.25rem;">
+                    <div class="signer-field-label">Identity verification (this window)</div>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:0.6rem; margin-top:0.5rem;">
+                        @{ var ivTile = "background: var(--stampd-surface-alt); border:1px solid var(--stampd-border); border-radius:8px; padding:0.6rem 0.85rem;"; }
+                        <div style="@ivTile">
+                            <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Required</div>
+                            <div style="font-size:1.2rem; font-weight:700;">@_iv.RequiredCount</div>
+                        </div>
+                        <div style="@ivTile">
+                            <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Verified</div>
+                            <div style="font-size:1.2rem; font-weight:700; color:#16a34a;">@_iv.VerifiedCount</div>
+                            <div style="font-size:0.72rem; color: var(--stampd-muted);">@_iv.VerifyRatePercent.ToString("0.#")% success</div>
+                        </div>
+                        <div style="@ivTile">
+                            <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">OTP initiates</div>
+                            <div style="font-size:1.2rem; font-weight:700;">@_iv.InitiatesCount</div>
+                        </div>
+                        <div style="@ivTile">
+                            <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Locked out</div>
+                            <div style="font-size:1.2rem; font-weight:700; color:#dc2626;">@_iv.LockedOutCount</div>
+                            <div style="font-size:0.72rem; color: var(--stampd-muted);">Hit max-attempts threshold</div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Time-to-sign table -->
+            @if (_timeToSign is not null && _timeToSign.Items.Count > 0)
+            {
+                <div style="margin-top:1.25rem;">
+                    <div class="signer-field-label">Time-to-sign by template (top @_timeToSign.Take)</div>
+                    <div class="stampd-template-table" style="margin-top:0.5rem;">
+                        <div class="stampd-request-row stampd-template-head" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
+                            <div>Template</div>
+                            <div>Signed</div>
+                            <div>Avg (min)</div>
+                            <div>Median (min)</div>
+                        </div>
+                        @foreach (var t in _timeToSign.Items)
+                        {
+                            <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
+                                <div>
+                                    <div style="font-weight:600;">@t.TemplateName</div>
+                                </div>
+                                <div>@t.SignedCount</div>
+                                <div>@t.AvgMinutes.ToString("0.#")</div>
+                                <div>@t.MedianMinutes.ToString("0.#")</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </section>
+
+        <!-- v2.0 Slice D — danger zone: cleanup demo data. Renders in any env but the
+             endpoint itself gates by environment + Stampd:Admin:AllowDemoCleanup. -->
+        <section class="stampd-card" style="border:1px solid #fecaca;">
+            <h2 class="stampd-card-title" style="color:#b91c1c;">Danger zone</h2>
+            <p class="stampd-page-subtitle" style="margin-top:0.25rem;">
+                Wipe all signing-workflow data (templates are preserved). Useful for
+                resetting the demo between walkthroughs. Audit trail, OTP challenges,
+                and webhook deliveries are deleted along with the signing requests.
+            </p>
+            @if (_cleanupResult is not null)
+            {
+                <div style="margin-top:0.75rem; padding:0.75rem 1rem; background: var(--stampd-surface-alt); border:1px solid var(--stampd-border); border-radius:8px; font-size:0.85rem;">
+                    <strong>Cleanup complete.</strong>
+                    Deleted: @_cleanupResult.SigningRequestsDeleted signing requests,
+                    @_cleanupResult.RecipientsDeleted recipients,
+                    @_cleanupResult.SignedDocumentsDeleted signed documents,
+                    @_cleanupResult.AuditEventsDeleted audit events,
+                    @_cleanupResult.OtpChallengesDeleted OTP challenges,
+                    @_cleanupResult.WebhookDeliveriesDeleted webhook deliveries.
+                </div>
+            }
+            @if (_cleanupError is not null)
+            {
+                <div class="signer-error" style="margin-top:0.75rem;">@_cleanupError</div>
+            }
+            <div style="display:flex; gap:0.5rem; margin-top:0.75rem;">
+                @if (!_confirmingCleanup)
+                {
+                    <button type="button"
+                            class="stampd-btn"
+                            style="background:#dc2626; color:white; border-color:#dc2626;"
+                            @onclick="() => _confirmingCleanup = true">
+                        Reset demo data
+                    </button>
+                }
+                else
+                {
+                    <span style="font-size:0.9rem; line-height:2.25rem;">
+                        Are you sure? This wipes every signing request in the tenant.
+                    </span>
+                    <button type="button"
+                            class="stampd-btn"
+                            style="background:#dc2626; color:white; border-color:#dc2626;"
+                            disabled="@_cleaning"
+                            @onclick="ConfirmCleanupAsync">
+                        @(_cleaning ? "Wiping…" : "Yes, delete everything")
+                    </button>
+                    <button type="button"
+                            class="stampd-btn stampd-btn--ghost"
+                            disabled="@_cleaning"
+                            @onclick="() => _confirmingCleanup = false">
+                        Cancel
+                    </button>
+                }
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private AdminDashboardSummary? _summary;
+    private AdminDashboardTrend? _trend;
+    private AdminTopTemplates? _topTemplates;
+    private bool _loading = true;
+
+    // v2.0 Slice D — danger zone state.
+    private bool _confirmingCleanup;
+    private bool _cleaning;
+    private CleanupDemoResult? _cleanupResult;
+    private string? _cleanupError;
+
+    // v2.0 Slice C — analytics state. Single window selector drives all three
+    // widgets so the dashboard reads as "the last N days" coherently.
+    private int _analyticsDays = 30;
+    private AdminAnalyticsFunnel? _funnel;
+    private AdminTimeToSign? _timeToSign;
+    private AdminIdentityVerification? _iv;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!CurrentUser.IsInRole(Stampd.Core.Authorization.StampdRoles.Admin))
+        {
+            _loading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            // Fan-out fetches: all six endpoints are independent, so kick them off
+            // in parallel and let the page wait on the slowest. Cold-cache load time
+            // halves (or sixths) vs. sequential.
+            var summaryTask = Api.GetAdminDashboardSummaryAsync(string.Empty, CancellationToken.None);
+            var trendTask = Api.GetAdminDashboardTrendAsync(string.Empty, days: 30, CancellationToken.None);
+            var topTask = Api.GetAdminTopTemplatesAsync(string.Empty, take: 5, CancellationToken.None);
+            var funnelTask = Api.GetAdminFunnelAsync(string.Empty, _analyticsDays, CancellationToken.None);
+            var ttsTask = Api.GetAdminTimeToSignAsync(string.Empty, _analyticsDays, take: 10, CancellationToken.None);
+            var ivTask = Api.GetAdminIdentityVerificationAsync(string.Empty, _analyticsDays, CancellationToken.None);
+
+            _summary = await summaryTask;
+            _trend = await trendTask;
+            _topTemplates = await topTask;
+            _funnel = await funnelTask;
+            _timeToSign = await ttsTask;
+            _iv = await ivTask;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>Analytics window changed — refetch just the three analytics widgets.</summary>
+    private async Task OnAnalyticsWindowChangedAsync(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var days) || days <= 0) return;
+        _analyticsDays = days;
+
+        // Only refetch the three analytics widgets; the summary tiles + trend +
+        // top-templates above don't read from _analyticsDays, so leave them as-is.
+        var funnelTask = Api.GetAdminFunnelAsync(string.Empty, _analyticsDays, CancellationToken.None);
+        var ttsTask = Api.GetAdminTimeToSignAsync(string.Empty, _analyticsDays, take: 10, CancellationToken.None);
+        var ivTask = Api.GetAdminIdentityVerificationAsync(string.Empty, _analyticsDays, CancellationToken.None);
+        _funnel = await funnelTask;
+        _timeToSign = await ttsTask;
+        _iv = await ivTask;
+    }
+
+    private static string CompletionChipClass(double pct) => pct switch
+    {
+        >= 80 => "stampd-chip--success",
+        >= 50 => "stampd-chip--accent",
+        _ => "stampd-chip--danger",
+    };
+
+    private async Task ConfirmCleanupAsync()
+    {
+        _cleaning = true;
+        _cleanupError = null;
+        try
+        {
+            var result = await Api.CleanupDemoAsync(string.Empty, CancellationToken.None);
+            if (result is null)
+            {
+                _cleanupError = "Cleanup endpoint rejected the call. In non-Development environments you must opt in via Stampd:Admin:AllowDemoCleanup=true.";
+            }
+            else
+            {
+                _cleanupResult = result;
+                // Refresh the dashboard so the tiles reflect the post-cleanup state.
+                await LoadAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _cleanupError = ex.Message;
+        }
+        finally
+        {
+            _cleaning = false;
+            _confirmingCleanup = false;
+        }
+    }
+}
