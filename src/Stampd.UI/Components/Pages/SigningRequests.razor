@@ -70,9 +70,11 @@
                             }
                             @if (r.Recipients.Count > 1)
                             {
-                                <div style="font-size:0.75rem; color: var(--stampd-muted); margin-top:2px;">
-                                    +@(r.Recipients.Count - 1) more
-                                </div>
+                                <a href="@($"/designer/requests/{r.Id}")"
+                                   style="font-size:0.75rem; color: var(--stampd-accent); margin-top:2px; display:inline-block; text-decoration:none;"
+                                   title="See all @r.Recipients.Count recipients and their statuses">
+                                    +@(r.Recipients.Count - 1) more → see all
+                                </a>
                             }
                         </div>
                         <div>
@@ -81,7 +83,12 @@
                         <div style="font-size:0.85rem; color: var(--stampd-muted);">
                             @r.CreatedAtUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
                         </div>
-                        <div style="display:flex; gap:0.4rem; justify-content:flex-end;">
+                        <div style="display:flex; gap:0.4rem; justify-content:flex-end; align-items:center;">
+                            <a class="stampd-btn stampd-btn--ghost"
+                               href="@($"/designer/requests/{r.Id}")"
+                               title="See per-recipient status, timestamps, and audit trail">
+                                Details
+                            </a>
                             @if (isCompleted)
                             {
                                 <a class="stampd-btn stampd-btn--primary"

@@ -1,0 +1,317 @@
+@page "/designer/requests/{Id:guid}"
+@rendermode InteractiveServer
+@inject DesignerApiClient Api
+@inject IConfiguration Config
+@inject IHostEnvironment HostEnv
+@inject NavigationManager Navigation
+
+<PageTitle>Signing request — Stampd</PageTitle>
+
+<div class="stampd-page">
+    <section class="stampd-hero">
+        <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.5rem;">
+            <a href="/designer/requests" class="stampd-btn stampd-btn--ghost" style="padding:0.35rem 0.75rem; font-size:0.82rem;">← Back to list</a>
+        </div>
+        <h1 class="stampd-hero-title">@(_detail?.Subject ?? "Signing request")</h1>
+        <p class="stampd-hero-sub">
+            Per-recipient status, timestamps, audit trail, and signed-PDF download for this workflow.
+        </p>
+    </section>
+
+    @if (!AutoAuth)
+    {
+        <DesignerAuthBar @ref="_authBar" OnTokenChanged="OnTokenChanged" />
+    }
+
+    @if (_loading)
+    {
+        <section class="stampd-card">
+            <p class="stampd-page-subtitle">Loading…</p>
+        </section>
+    }
+    else if (_detail is null)
+    {
+        <section class="stampd-card">
+            <div class="signer-error">
+                Couldn't load this signing request — it may have been deleted or you may not have permission.
+            </div>
+        </section>
+    }
+    else
+    {
+        var isCompleted = string.Equals(_detail.Status, "Completed", StringComparison.OrdinalIgnoreCase);
+
+        <!-- Summary card -->
+        <section class="stampd-card">
+            <h2 class="stampd-card-title">Summary</h2>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.85rem 2rem; margin-top:0.75rem;">
+                <div>
+                    <div class="signer-field-label">Status</div>
+                    <span class="stampd-chip @StatusChipClass(_detail.Status)">@_detail.Status</span>
+                </div>
+                <div>
+                    <div class="signer-field-label">Dispatched</div>
+                    <div>@(_detail.SentAtUtc?.LocalDateTime.ToString("yyyy-MM-dd HH:mm") ?? "—")</div>
+                </div>
+                <div>
+                    <div class="signer-field-label">Created</div>
+                    <div>@_detail.CreatedAtUtc.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</div>
+                </div>
+                <div>
+                    <div class="signer-field-label">Completed</div>
+                    <div>@(_detail.CompletedAtUtc?.LocalDateTime.ToString("yyyy-MM-dd HH:mm") ?? "—")</div>
+                </div>
+                <div>
+                    <div class="signer-field-label">Recipients</div>
+                    <div>@_detail.Recipients.Count signer@(_detail.Recipients.Count == 1 ? "" : "s")</div>
+                </div>
+                <div>
+                    <div class="signer-field-label">Request id</div>
+                    <code class="stampd-code" style="font-size:0.78rem;">@_detail.Id.ToString("N")[..12]</code>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recipients table -->
+        <section class="stampd-card">
+            <h2 class="stampd-card-title">Recipients</h2>
+            <p class="stampd-page-subtitle" style="margin-top:0.25rem;">
+                @if (isCompleted)
+                {
+                    <text>All recipients have signed. The sealed PDF is downloadable from any row below — every download serves the same single B-LTA-sealed file.</text>
+                }
+                else
+                {
+                    <text>Routing order is shown left-to-right. Recipients with an open access link can still sign; signed and declined rows are locked.</text>
+                }
+            </p>
+
+            <div style="display:flex; flex-direction:column; gap:0.6rem; margin-top:0.75rem;">
+                @foreach (var r in _detail.Recipients.OrderBy(rr => rr.RoutingOrder))
+                {
+                    var recipientStatus = r.Status;
+                    var isSigned = string.Equals(recipientStatus, "Signed", StringComparison.OrdinalIgnoreCase);
+                    var isDeclined = string.Equals(recipientStatus, "Declined", StringComparison.OrdinalIgnoreCase);
+
+                    <div style="display:grid; grid-template-columns: 2fr 1.4fr 1fr 1fr auto; gap:0.75rem; align-items:center; padding:0.85rem 1rem; background: var(--stampd-surface-alt); border-radius:10px; border:1px solid var(--stampd-border);">
+                        <div>
+                            <div style="font-weight:600;">@r.Name</div>
+                            <div style="font-size:0.78rem; color: var(--stampd-muted);">@r.Email</div>
+                            @if (!string.IsNullOrWhiteSpace(r.RoleName))
+                            {
+                                <span class="stampd-chip" style="margin-top:0.35rem; font-size:0.72rem;">@r.RoleName</span>
+                            }
+                        </div>
+                        <div style="font-size:0.82rem;">
+                            <div style="color: var(--stampd-muted); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em;">Routing</div>
+                            <div>Order @r.RoutingOrder</div>
+                        </div>
+                        <div>
+                            <span class="stampd-chip @RecipientChipClass(recipientStatus)">@recipientStatus</span>
+                        </div>
+                        <div style="font-size:0.82rem;">
+                            @if (isSigned && r.SignedAtUtc is not null)
+                            {
+                                <div style="color: var(--stampd-muted); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em;">Signed</div>
+                                <div>@r.SignedAtUtc.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</div>
+                            }
+                            else if (r.InvitedAtUtc is not null)
+                            {
+                                <div style="color: var(--stampd-muted); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em;">Invited</div>
+                                <div>@r.InvitedAtUtc.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</div>
+                            }
+                            else
+                            {
+                                <div style="color: var(--stampd-muted); font-size:0.82rem;">Waiting on prior signer</div>
+                            }
+                        </div>
+                        <div>
+                            @if (isCompleted)
+                            {
+                                <a class="stampd-btn stampd-btn--primary"
+                                   href="@SignedDocumentUrlFor(r)"
+                                   target="_blank"
+                                   rel="noopener"
+                                   title="Open the sealed PDF in a new tab">
+                                    Download PDF
+                                </a>
+                            }
+                            else if (!isDeclined && !string.IsNullOrWhiteSpace(r.AccessUrl))
+                            {
+                                <a class="stampd-btn stampd-btn--ghost"
+                                   href="@r.AccessUrl"
+                                   target="_blank"
+                                   rel="noopener"
+                                   title="Open the recipient signing page">
+                                    Open signing link
+                                </a>
+                            }
+                            else
+                            {
+                                <span style="color: var(--stampd-muted); font-size:0.78rem;">—</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <!-- Audit timeline -->
+        <section class="stampd-card">
+            <h2 class="stampd-card-title">Audit timeline</h2>
+            @if (_audit is null)
+            {
+                <p class="stampd-page-subtitle">Audit trail unavailable.</p>
+            }
+            else if (_audit.Events.Count == 0)
+            {
+                <p class="stampd-page-subtitle">No events recorded yet.</p>
+            }
+            else
+            {
+                <div style="display:flex; flex-direction:column; gap:0.4rem; margin-top:0.75rem;">
+                    @foreach (var evt in _audit.Events.OrderBy(e => e.OccurredAtUtc))
+                    {
+                        var recipientName = ResolveRecipientName(evt.RecipientId);
+                        <div style="display:grid; grid-template-columns: auto 1fr auto; gap:0.75rem; align-items:center; padding:0.55rem 0.85rem; border-left:3px solid @TimelineColor(evt.EventType); background: var(--stampd-surface-alt); border-radius:6px;">
+                            <div style="font-family: ui-monospace, monospace; font-size:0.78rem; color: var(--stampd-muted);">
+                                @evt.OccurredAtUtc.LocalDateTime.ToString("HH:mm:ss")
+                            </div>
+                            <div style="font-size:0.86rem;">
+                                <strong>@FormatEventType(evt.EventType)</strong>
+                                @if (recipientName is not null)
+                                {
+                                    <text> · @recipientName</text>
+                                }
+                            </div>
+                            <div style="font-size:0.72rem; color: var(--stampd-muted);">
+                                @evt.OccurredAtUtc.LocalDateTime.ToString("yyyy-MM-dd")
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private DesignerAuthBar? _authBar;
+    private string _token = string.Empty;
+    private SigningRequestDetail? _detail;
+    private SigningRequestAuditPage? _audit;
+    private bool _loading = true;
+
+    private bool AutoAuth => HostEnv.IsDevelopment();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AutoAuth)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task OnTokenChanged(string token)
+    {
+        _token = token;
+        if (string.IsNullOrEmpty(token))
+        {
+            _detail = null;
+            _audit = null;
+            return;
+        }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            // Fire both fetches in parallel — the detail and the audit don't depend on each
+            // other, so we cut the perceived load time in half on cold caches.
+            var detailTask = Api.GetSigningRequestAsync(_token, Id, CancellationToken.None);
+            var auditTask = Api.GetSigningRequestAuditAsync(_token, Id, CancellationToken.None);
+
+            _detail = await detailTask;
+            _audit = await auditTask;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Sender's signed-PDF download URL. Same workaround as SigningRequests.razor —
+    /// the DevAuthHttpHandler can't inject the JWT on plain <c>&lt;a href&gt;</c> navigation,
+    /// so we reuse the recipient's per-signature access token (which IS auth on that
+    /// endpoint). Every row gets a download link, all pointing at the same sealed PDF
+    /// — there's only one signed-document record per request because PAdES seals
+    /// once after every recipient has signed.
+    /// </summary>
+    private string SignedDocumentUrlFor(RecipientViewDto r)
+    {
+        var apiBase = (Config["Stampd:Api:BaseUrl"] ?? "http://localhost:5070").TrimEnd('/');
+        // After completion, recipient.AccessUrl is null (returned that way from the
+        // server so the recipient can't re-open the signing page). Fall back to ANY
+        // recipient's URL by scanning the list — every completed request must have at
+        // least one signed recipient with an access token still resolvable from before
+        // signing. In practice, _detail.Recipients always carries the tokens because
+        // ToResponse computes the URL inline.
+        var anyRecipient = _detail?.Recipients.FirstOrDefault(rr => !string.IsNullOrWhiteSpace(rr.AccessUrl));
+        var url = anyRecipient?.AccessUrl ?? r.AccessUrl;
+        if (string.IsNullOrWhiteSpace(url)) return "#";
+
+        var token = url.Split('/')[^1];
+        return $"{apiBase}/api/sign/{token}/signed-document";
+    }
+
+    private string? ResolveRecipientName(Guid? recipientId)
+    {
+        if (recipientId is null || _detail is null) return null;
+        var match = _detail.Recipients.FirstOrDefault(r => r.Id == recipientId.Value);
+        return match?.Name;
+    }
+
+    private static string FormatEventType(string eventType) => eventType switch
+    {
+        "SigningRequestCreated" => "Request created",
+        "SigningRequestSent" => "Sent for signature",
+        "SigningRequestCompleted" => "All recipients signed",
+        "SigningRequestVoided" => "Request voided",
+        "RecipientInvited" => "Recipient invited",
+        "RecipientViewed" => "Recipient opened",
+        "RecipientIdentityVerified" => "Identity verified",
+        "RecipientSigned" => "Recipient signed",
+        "RecipientDeclined" => "Recipient declined",
+        "DocumentSealed" => "Document sealed",
+        _ => eventType,
+    };
+
+    private static string TimelineColor(string eventType) => eventType switch
+    {
+        "SigningRequestCompleted" or "DocumentSealed" or "RecipientSigned" => "#2b7fce",
+        "RecipientDeclined" or "SigningRequestVoided" => "#dc2626",
+        "RecipientIdentityVerified" => "#16a34a",
+        _ => "#94a3b8",
+    };
+
+    private static string RecipientChipClass(string status) => status switch
+    {
+        "Signed" => "stampd-chip--success",
+        "Declined" or "Expired" => "stampd-chip--danger",
+        "Pending" => "stampd-chip",
+        _ => "stampd-chip--accent",
+    };
+
+    private static string StatusChipClass(string status) => status switch
+    {
+        "Completed" => "stampd-chip--success",
+        "Voided" or "Declined" or "Expired" => "stampd-chip--danger",
+        _ => "stampd-chip--accent",
+    };
+}

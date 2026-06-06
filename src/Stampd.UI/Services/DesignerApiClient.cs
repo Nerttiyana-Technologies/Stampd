@@ -31,9 +31,13 @@ public sealed class DesignerApiClient
 
     private static void ApplyBearer(HttpRequestMessage req, string bearerToken)
     {
+        // When bearerToken is empty we leave the request header alone — DevAuthHttpHandler
+        // takes over in Development and injects a dev-minted JWT. When a real token is
+        // supplied (e.g. the DesignerAuthBar in non-Dev mode), attach it as a standard
+        // Bearer Authorization header.
         if (!string.IsNullOrEmpty(bearerToken))
         {
-            ApplyBearer(req, bearerToken);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
         }
     }
 
@@ -196,5 +200,45 @@ public sealed class DesignerApiClient
             .ReadFromJsonAsync<SigningRequestResponse>(JsonOptions, ct)
             .ConfigureAwait(false);
         return (true, payload, null);
+    }
+
+    /// <summary>
+    /// Fetches a single signing request with all its recipients (v1.3 #135 — sender
+    /// detail page). Returns null on 404 or any non-success status.
+    /// </summary>
+    public async Task<SigningRequestDetail?> GetSigningRequestAsync(
+        string bearerToken,
+        Guid id,
+        CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/signing-requests/{id}");
+        ApplyBearer(req, bearerToken);
+
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode) return null;
+
+        return await resp.Content
+            .ReadFromJsonAsync<SigningRequestDetail>(JsonOptions, ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Fetches the audit trail for a signing request, oldest-first (v1.3 #135). The
+    /// detail page renders this as a timeline alongside the recipients table.
+    /// </summary>
+    public async Task<SigningRequestAuditPage?> GetSigningRequestAuditAsync(
+        string bearerToken,
+        Guid id,
+        CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/signing-requests/{id}/audit");
+        ApplyBearer(req, bearerToken);
+
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode) return null;
+
+        return await resp.Content
+            .ReadFromJsonAsync<SigningRequestAuditPage>(JsonOptions, ct)
+            .ConfigureAwait(false);
     }
 }
