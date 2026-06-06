@@ -158,30 +158,36 @@ Env-var form: `Stampd__Email__Smtp__Host`, `Stampd__Email__Smtp__Port`, etc.
 
 ## Feature matrix
 
-| Capability | v1.0 | v1.1 | v1.2 (current) |
-|---|---|---|---|
-| PAdES B-B (basic) | ✅ | ✅ | ✅ |
-| PAdES B-T (RFC 3161 timestamp) | ✅ | ✅ | ✅ |
-| PAdES B-LT (CRL + OCSP via DSS) | — | ✅ | ✅ |
-| PAdES B-LTA (archive timestamp) | — | — | ✅ † |
-| Local certificate sealing | ✅ | ✅ | ✅ |
-| HashiCorp Vault / OpenBao Transit | ✅ | ✅ | ✅ |
-| Azure Key Vault | — | ✅ | ✅ |
-| AWS KMS | — | ✅ | ✅ |
-| Configurable RFC 3161 TSA (DigiCert / GlobalSign / Sectigo / internal) | — | ✅ | ✅ |
-| SQL Server / Postgres / SQLite | ✅ | ✅ | ✅ |
-| S3 / Azure Blob / GCS storage | — | ✅ | ✅ |
-| Email-driven workflow dispatch | — | ✅ | ✅ |
-| Persistent OTP store (DB-backed) | — | ✅ | ✅ |
-| SMS OTP + KBA identity verification | — | ✅ | ✅ |
-| Webhook outbox with HMAC delivery | — | ✅ | ✅ |
-| Bulk-send worker | — | ✅ | ✅ |
-| Multi-recipient field aggregation | — | ✅ | ✅ |
-| Blazor signer experience | — | ✅ | ✅ |
-| Blazor template designer | — | ✅ | ✅ |
-| Identity-verification UI gates | — | — | ✅ |
-| Drag-to-move + resize handles in designer | — | — | ✅ |
-| True PDF incremental update for strict ETSI B-LT | — | — | ✅ |
+| Capability | v1.0 | v1.1 | v1.2 | v1.3 (current) |
+|---|---|---|---|---|
+| PAdES B-B (basic) | ✅ | ✅ | ✅ | ✅ |
+| PAdES B-T (RFC 3161 timestamp) | ✅ | ✅ | ✅ | ✅ |
+| PAdES B-LT (CRL + OCSP via DSS) | — | ✅ | ✅ | ✅ |
+| PAdES B-LTA (archive timestamp) | — | — | ✅ | ✅ † |
+| Strict ETSI ATSHashIndexV3 imprint | — | — | — | ✅ |
+| PAdES Document Timestamp (`/Type /DocTimeStamp`) | — | — | — | ✅ |
+| Local certificate sealing | ✅ | ✅ | ✅ | ✅ |
+| HashiCorp Vault / OpenBao Transit | ✅ | ✅ | ✅ | ✅ |
+| Azure Key Vault | — | ✅ | ✅ | ✅ |
+| AWS KMS | — | ✅ | ✅ | ✅ |
+| Configurable RFC 3161 TSA (DigiCert / GlobalSign / Sectigo / internal) | — | ✅ | ✅ | ✅ |
+| SQL Server / Postgres / SQLite | ✅ | ✅ | ✅ | ✅ |
+| S3 / Azure Blob / GCS storage | — | ✅ | ✅ | ✅ |
+| Email-driven workflow dispatch | — | ✅ | ✅ | ✅ |
+| Persistent OTP store (DB-backed) | — | ✅ | ✅ | ✅ |
+| SMS OTP + KBA identity verification | — | ✅ | ✅ | ✅ |
+| OTP rate limit + brute-force lockout | — | — | — | ✅ |
+| Webhook outbox with HMAC delivery | — | ✅ | ✅ | ✅ |
+| Bulk-send worker | — | ✅ | ✅ | ✅ |
+| Multi-recipient field aggregation | — | ✅ | ✅ | ✅ |
+| Multi-recipient sender detail page | — | — | — | ✅ |
+| Sender completion notification email | — | — | — | ✅ |
+| Blazor signer experience | — | ✅ | ✅ | ✅ |
+| Blazor template designer | — | ✅ | ✅ | ✅ |
+| Identity-verification UI gates | — | — | ✅ | ✅ |
+| Drag-to-move + resize handles in designer | — | — | ✅ | ✅ |
+| True PDF incremental update for strict ETSI B-LT | — | — | ✅ | ✅ |
+| Paginated signing-requests list (UI + API) | — | — | — | ✅ |
 
 † **B-LTA carrier — belt + suspenders.** Stampd emits BOTH long-term archive carriers for B-LTA, so adopters get maximum verifier interop:
 >
@@ -192,13 +198,14 @@ Env-var form: `Stampd__Email__Smtp__Host`, `Stampd__Email__Smtp__Port`, etc.
 
 ## Roadmap
 
-**v1.2 candidates** — drag-to-move + resize in the designer ✅, identity verification UI step ✅, B-LTA archive timestamp ✅ (CMS-attribute form; see caveat above), proper incremental-update DSS for strict ETSI PAdES B-LT conformance ✅, server-side ordering on worker columns via `long` epoch conversion ✅, edit-existing-template flow in the designer ✅.
+**v1.3 candidates** — strict ETSI ATSHashIndexV3 imprint ✅, PAdES Document Timestamp (`/Type /DocTimeStamp`) B-LTA carrier ✅, sender completion notification email ✅, multi-recipient sender detail page with per-recipient PDF download ✅, OTP rate limit + brute-force lockout ✅, signing-requests pagination ✅, SigningRequest + SignedDocumentRecord epoch sort columns (Phase 2) + SqlServer/Postgres V12+V13 catch-up migrations ✅.
 
 **v2.0 vision** — Blazor admin dashboards (signing volume, completion rates, drop-off by step), workflow rules engine (conditional fields, branching), industry-specific compliance bundles (HIPAA, 21 CFR Part 11, eIDAS QES).
 
 ## Release history
 
-- **v1.2.0** *(current)* — Strict ETSI B-LT via PDF incremental update, B-LTA archive timestamp (CMS-attribute form), Email-OTP identity-verification UI gate, Hermex dev mailbox at `/hermex`, edit-existing-template flow, server-side worker sort columns, seamless `/demo` one-click bootstrap, sender-side **Requests** view with sealed-PDF download, executive-grade HTML OTP email template, auto-auth in Development (zero terminal commands, zero copy-paste).
+- **v1.3.0** *(current)* — Strict-ETSI B-LTA hardening (`id-aa-ats-hash-index-v3` imprint + parallel `/Type /DocTimeStamp` PAdES Part 4 carrier), sender completion notification email + executive-grade invitation HTML upgrade, multi-recipient sender detail page at `/designer/requests/{id}` with audit timeline, OTP rate limit + brute-force lockout, paginated signing-requests list with prev/next + per-page selector, epoch sort columns finished on SigningRequest + SignedDocumentRecord plus four catch-up migrations bringing SqlServer + Postgres providers to V13.
+- **v1.2.0** — Strict ETSI B-LT via PDF incremental update, B-LTA archive timestamp (CMS-attribute form), Email-OTP identity-verification UI gate, Hermex dev mailbox at `/hermex`, edit-existing-template flow, server-side worker sort columns, seamless `/demo` one-click bootstrap, sender-side **Requests** view with sealed-PDF download, executive-grade HTML OTP email template, auto-auth in Development (zero terminal commands, zero copy-paste).
 - **v1.1.0** — Production sealing providers, multi-cloud storage, B-LT signatures, webhooks, bulk-send, full Blazor signer + designer UI. End-to-end verified.
 - **v1.0.0** — PAdES B-B + B-T engine, local certificate sealing, Vault HSM via BYOK, multi-tenant API, EF Core 10.
 
