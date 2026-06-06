@@ -18,6 +18,15 @@
 
   <ItemGroup>
     <!--
+      v2.0 — Stampd.Core for the shared StampdRoles taxonomy. Core has zero runtime
+      dependencies so this is a near-free addition; the role-name strings are the
+      single source of truth for both API authorization policies and UI claim checks.
+    -->
+    <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
       Versions floated to the latest stable available against .NET 10 at the time of
       writing. If `dotnet restore` complains a version doesn't exist yet, run
       `dotnet add package Microsoft.FluentUI.AspNetCore.Components` to pick the actual

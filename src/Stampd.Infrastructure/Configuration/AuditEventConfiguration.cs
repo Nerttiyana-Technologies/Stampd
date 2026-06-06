@@ -28,9 +28,20 @@ internal sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEv
 
         builder.Property(e => e.IsRedacted).IsRequired();
 
+        // v2.0 Slice D — actor attribution. Nullable strings; capped to reasonable
+        // lengths so the column doesn't bloat the table. ActorUserId at 256 holds any
+        // reasonable JWT sub claim (email, UUID, opaque identifier); ActorRole at 64
+        // covers Admin/Sender/ReadOnly with headroom for future role names.
+        builder.Property(e => e.ActorUserId).HasMaxLength(256);
+        builder.Property(e => e.ActorRole).HasMaxLength(64);
+
         builder.HasIndex(e => new { e.TenantId, e.OccurredAtUtc });
         builder.HasIndex(e => new { e.SigningRequestId, e.OccurredAtUtc });
         builder.HasIndex(e => new { e.TenantId, e.EventType });
+        // Filtered index for "all admin actions in this tenant" — the most common
+        // audit query a tenant admin will run. NULL entries (recipient-flow events,
+        // pre-v2 rows) are excluded.
+        builder.HasIndex(e => new { e.TenantId, e.ActorUserId, e.OccurredAtUtc });
 
         builder.HasOne(e => e.Recipient)
             .WithMany()

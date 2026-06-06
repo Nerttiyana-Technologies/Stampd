@@ -71,7 +71,15 @@ public sealed class StampdApiClient
 
         if (!response.IsSuccessStatusCode)
         {
-            return null;
+            // Surface the real status + body so Sign.razor's catch block can show
+            // exactly what the server rejected with. The generic "may have expired"
+            // fallback in Sign.razor was hiding 403 identity-verification errors and
+            // 409 already-signed errors — diagnose-by-actual-message is the right
+            // shape now that the workflow has more failure modes (v1.3 #136 lockout,
+            // v1.3 #135 multi-recipient races, etc.).
+            var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            throw new HttpRequestException(
+                $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}: {body}");
         }
 
         return await response.Content

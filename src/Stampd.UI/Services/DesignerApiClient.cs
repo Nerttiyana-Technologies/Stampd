@@ -138,23 +138,59 @@ public sealed class DesignerApiClient
     }
 
     /// <summary>
-    /// Lists signing requests for the current tenant, newest first, with paging
-    /// (v1.3 #158). Used by the <c>/designer/requests</c> page so the sender can browse
-    /// in-flight and completed workflows and grab signed PDFs. <paramref name="page"/>
-    /// and <paramref name="pageSize"/> map to the API's query params and the server
-    /// coerces both to safe bounds — page≥1, pageSize∈[1,200] defaulting to 25.
+    /// Lists signing requests for the current tenant with paging + filtering + sort
+    /// (v2.0 Slice B; supersedes v1.3 #158's basic paging signature). A null filter
+    /// preserves v1.3 behavior: newest-dispatched-first, all statuses, all templates.
     /// </summary>
     public async Task<SigningRequestListPage?> ListSigningRequestsAsync(
         string bearerToken,
-        Guid? templateId,
         int page,
         int pageSize,
+        SigningRequestListFilter? filter,
         CancellationToken ct)
     {
-        var queryParams = new List<string> { $"page={page}", $"pageSize={pageSize}" };
-        if (templateId is not null)
+        // Build query string defensively — only emit params the caller actually set,
+        // so a default-filter call results in the same compact URL v1.3 produced.
+        var queryParams = new List<string>
         {
-            queryParams.Add($"templateId={templateId.Value}");
+            $"page={page}",
+            $"pageSize={pageSize}",
+        };
+
+        if (filter is not null)
+        {
+            if (filter.TemplateId is not null)
+            {
+                queryParams.Add($"templateId={filter.TemplateId.Value}");
+            }
+            if (filter.Status is { Count: > 0 } statuses)
+            {
+                queryParams.Add($"status={Uri.EscapeDataString(string.Join(',', statuses))}");
+            }
+            if (!string.IsNullOrWhiteSpace(filter.SenderEmail))
+            {
+                queryParams.Add($"senderEmail={Uri.EscapeDataString(filter.SenderEmail)}");
+            }
+            if (!string.IsNullOrWhiteSpace(filter.RecipientEmail))
+            {
+                queryParams.Add($"recipientEmail={Uri.EscapeDataString(filter.RecipientEmail)}");
+            }
+            if (filter.DispatchedFrom is not null)
+            {
+                queryParams.Add($"dispatchedFrom={Uri.EscapeDataString(filter.DispatchedFrom.Value.ToString("o", System.Globalization.CultureInfo.InvariantCulture))}");
+            }
+            if (filter.DispatchedTo is not null)
+            {
+                queryParams.Add($"dispatchedTo={Uri.EscapeDataString(filter.DispatchedTo.Value.ToString("o", System.Globalization.CultureInfo.InvariantCulture))}");
+            }
+            if (!string.IsNullOrWhiteSpace(filter.SortBy))
+            {
+                queryParams.Add($"sortBy={Uri.EscapeDataString(filter.SortBy)}");
+            }
+            if (!string.IsNullOrWhiteSpace(filter.Direction))
+            {
+                queryParams.Add($"direction={Uri.EscapeDataString(filter.Direction)}");
+            }
         }
 
         var url = "/api/signing-requests/?" + string.Join('&', queryParams);
@@ -240,5 +276,116 @@ public sealed class DesignerApiClient
         return await resp.Content
             .ReadFromJsonAsync<SigningRequestAuditPage>(JsonOptions, ct)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>v2.0 Slice A — GET /api/admin/dashboard summary tile counts.</summary>
+    public async Task<AdminDashboardSummary?> GetAdminDashboardSummaryAsync(
+        string bearerToken,
+        CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/admin/dashboard/");
+        ApplyBearer(req, bearerToken);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<AdminDashboardSummary>(JsonOptions, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>v2.0 Slice A — GET /api/admin/dashboard/trend (default 30 days).</summary>
+    public async Task<AdminDashboardTrend?> GetAdminDashboardTrendAsync(
+        string bearerToken,
+        int days,
+        CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/admin/dashboard/trend?days={days}");
+        ApplyBearer(req, bearerToken);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<AdminDashboardTrend>(JsonOptions, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>v2.0 Slice A — GET /api/admin/dashboard/top-templates.</summary>
+    public async Task<AdminTopTemplates?> GetAdminTopTemplatesAsync(
+        string bearerToken,
+        int take,
+        CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/admin/dashboard/top-templates?take={take}");
+        ApplyBearer(req, bearerToken);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<AdminTopTemplates>(JsonOptions, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>v2.0 Slice D — POST /api/admin/cleanup-demo. Returns null on non-success.</summary>
+    public async Task<CleanupDemoResult?> CleanupDemoAsync(string bearerToken, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/admin/cleanup-demo");
+        ApplyBearer(req, bearerToken);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<CleanupDemoResult>(JsonOptions, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>v2.0 Slice D — POST /api/admin/signing-requests/void with optional reason.</summary>
+    public async Task<BulkOperationResult?> BulkVoidAsync(
+        string bearerToken,
+        IReadOnlyList<Guid> ids,
+        string? reason,
+        CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/admin/signing-requests/void")
+        {
+            Content = JsonContent.Create(new { ids, reason }, options: JsonOptions),
+        };
+        ApplyBearer(req, bearerToken);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<BulkOperationResult>(JsonOptions, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>v2.0 Slice D — POST /api/admin/signing-requests/resend-invitation.</summary>
+    public async Task<BulkOperationResult?> BulkResendAsync(
+        string bearerToken,
+        IReadOnlyList<Guid> recipientIds,
+        CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/admin/signing-requests/resend-invitation")
+        {
+            Content = JsonContent.Create(new { recipientIds }, options: JsonOptions),
+        };
+        ApplyBearer(req, bearerToken);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<BulkOperationResult>(JsonOptions, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>v2.0 Slice C — GET /api/admin/analytics/funnel.</summary>
+    public async Task<AdminAnalyticsFunnel?> GetAdminFunnelAsync(string bearerToken, int days, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/admin/analytics/funnel?days={days}");
+        ApplyBearer(req, bearerToken);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<AdminAnalyticsFunnel>(JsonOptions, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>v2.0 Slice C — GET /api/admin/analytics/time-to-sign.</summary>
+    public async Task<AdminTimeToSign?> GetAdminTimeToSignAsync(string bearerToken, int days, int take, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/admin/analytics/time-to-sign?days={days}&take={take}");
+        ApplyBearer(req, bearerToken);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<AdminTimeToSign>(JsonOptions, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>v2.0 Slice C — GET /api/admin/analytics/identity-verification.</summary>
+    public async Task<AdminIdentityVerification?> GetAdminIdentityVerificationAsync(string bearerToken, int days, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/admin/analytics/identity-verification?days={days}");
+        ApplyBearer(req, bearerToken);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<AdminIdentityVerification>(JsonOptions, ct).ConfigureAwait(false);
     }
 }
