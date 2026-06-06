@@ -281,7 +281,27 @@ internal static class RecipientSigningEndpoints
             Email: recipient.Email,
             DisplayName: recipient.Name);
 
-        var challenge = await verificationProvider.InitiateAsync(subject, ct).ConfigureAwait(false);
+        Stampd.Core.Identity.IdentityVerificationChallenge challenge;
+        try
+        {
+            challenge = await verificationProvider.InitiateAsync(subject, ct).ConfigureAwait(false);
+        }
+        catch (Stampd.Core.Identity.OtpRateLimitExceededException ex)
+        {
+            // v1.3 #136 — convert rate-limit rejection into a standards-compliant 429.
+            // Retry-After is RFC 7231 §7.1.3: integer seconds OR an HTTP-date. Seconds
+            // is simpler and good enough for OTP throttling windows measured in
+            // minutes. The body carries a recipient-friendly message; the Identifier
+            // is deliberately NOT echoed back to avoid leaking which addresses are
+            // valid recipients in this tenant.
+            return Results.Problem(
+                detail: "Too many verification requests for this signer. Please try again later.",
+                statusCode: 429,
+                extensions: new Dictionary<string, object?>
+                {
+                    ["retryAfterSeconds"] = (int)ex.RetryAfter.TotalSeconds,
+                });
+        }
 
         return Results.Ok(new InitiateVerificationResponse(
             VerificationId: challenge.VerificationId,

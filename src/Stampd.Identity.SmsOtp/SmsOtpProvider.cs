@@ -51,12 +51,37 @@ public sealed class SmsOtpProvider : IIdentityVerificationProvider
                 "SmsOtpProvider requires IdentityVerificationSubject.PhoneNumber to be non-empty.");
         }
 
+        // v1.3 #136 — initiate rate limit. Same gate as EmailOtpProvider, partitioned on
+        // the phone number. SMS is expensive (per-send carrier cost) so this protects the
+        // adopter's wallet as much as the recipient's experience.
+        if (_options.InitiatesPerWindowMax > 0)
+        {
+            var windowStart = DateTimeOffset.UtcNow - _options.InitiateRateLimitWindow;
+            var recent = await _store
+                .CountInitiatesSinceAsync(subject.PhoneNumber, windowStart, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (recent >= _options.InitiatesPerWindowMax)
+            {
+                throw new OtpRateLimitExceededException(subject.PhoneNumber, _options.InitiateRateLimitWindow);
+            }
+        }
+
         var code = GenerateCode();
         var verificationId = Guid.NewGuid().ToString("N");
-        var expiresAt = DateTimeOffset.UtcNow.Add(_options.ChallengeLifetime);
+        var now = DateTimeOffset.UtcNow;
+        var expiresAt = now.Add(_options.ChallengeLifetime);
 
         await _store
-            .StoreAsync(new OtpChallenge(verificationId, Identifier: subject.PhoneNumber, Code: code, ExpiresAtUtc: expiresAt), cancellationToken)
+            .StoreAsync(
+                new OtpChallenge(
+                    verificationId,
+                    Identifier: subject.PhoneNumber,
+                    Code: code,
+                    ExpiresAtUtc: expiresAt,
+                    FailedAttempts: 0,
+                    CreatedAtUtc: now),
+                cancellationToken)
             .ConfigureAwait(false);
 
         var message = $"{_options.ProductName} verification code: {code}. " +
@@ -93,6 +118,16 @@ public sealed class SmsOtpProvider : IIdentityVerificationProvider
             return new IdentityVerificationResult(Succeeded: false, FailureReason: "Verification code expired.");
         }
 
+        // v1.3 #136 — same lockout gate as EmailOtpProvider, keyed off the in-store
+        // FailedAttempts counter.
+        if (_options.MaxFailedAttempts > 0 && challenge.FailedAttempts >= _options.MaxFailedAttempts)
+        {
+            await _store.RemoveAsync(verificationId, cancellationToken).ConfigureAwait(false);
+            return new IdentityVerificationResult(
+                Succeeded: false,
+                FailureReason: "Too many failed attempts. Please request a new verification code.");
+        }
+
         bool matched;
         if (challenge.Code.StartsWith("$dbstore$", StringComparison.Ordinal))
         {
@@ -107,6 +142,18 @@ public sealed class SmsOtpProvider : IIdentityVerificationProvider
 
         if (!matched)
         {
+            var newCount = await _store
+                .IncrementFailedAttemptsAsync(verificationId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (_options.MaxFailedAttempts > 0 && newCount >= _options.MaxFailedAttempts)
+            {
+                await _store.RemoveAsync(verificationId, cancellationToken).ConfigureAwait(false);
+                return new IdentityVerificationResult(
+                    Succeeded: false,
+                    FailureReason: "Too many failed attempts. Please request a new verification code.");
+            }
+
             return new IdentityVerificationResult(Succeeded: false, FailureReason: "Incorrect code.");
         }
 
@@ -152,4 +199,13 @@ public sealed class SmsOtpOptions
 {
     public string ProductName { get; set; } = "Stampd";
     public TimeSpan ChallengeLifetime { get; set; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>v1.3 #136 — same semantics as <c>EmailOtpOptions.MaxFailedAttempts</c>.</summary>
+    public int MaxFailedAttempts { get; set; } = 5;
+
+    /// <summary>v1.3 #136 — same semantics as <c>EmailOtpOptions.InitiatesPerWindowMax</c>.</summary>
+    public int InitiatesPerWindowMax { get; set; } = 5;
+
+    /// <summary>v1.3 #136 — same semantics as <c>EmailOtpOptions.InitiateRateLimitWindow</c>.</summary>
+    public TimeSpan InitiateRateLimitWindow { get; set; } = TimeSpan.FromMinutes(15);
 }

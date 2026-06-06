@@ -133,6 +133,44 @@ public sealed record SigningRequestListPage(
     [property: JsonPropertyName("pageSize")] int PageSize,
     [property: JsonPropertyName("totalPages")] int TotalPages);
 
+/// <summary>
+/// Mirror of GET /api/signing-requests/{id} (v1.3 #135 — sender detail page). Reuses
+/// the same wire shape as <c>SigningRequestResponse</c> but typed as a record so the
+/// detail page can bind it directly without juggling tuples.
+/// </summary>
+public sealed record SigningRequestDetail(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("documentTemplateId")] Guid DocumentTemplateId,
+    [property: JsonPropertyName("subject")] string Subject,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("createdAtUtc")] DateTimeOffset CreatedAtUtc,
+    [property: JsonPropertyName("sentAtUtc")] DateTimeOffset? SentAtUtc,
+    [property: JsonPropertyName("completedAtUtc")] DateTimeOffset? CompletedAtUtc,
+    [property: JsonPropertyName("recipients")] IReadOnlyList<RecipientViewDto> Recipients);
+
+/// <summary>
+/// Mirror of GET /api/signing-requests/{id}/audit (v1.3 #135). The shape comes back
+/// as an envelope with <c>events</c>; the detail page reads them oldest-first and
+/// renders them as a timeline alongside the recipients table.
+/// </summary>
+public sealed record SigningRequestAuditPage(
+    [property: JsonPropertyName("signingRequestId")] Guid SigningRequestId,
+    [property: JsonPropertyName("count")] int Count,
+    [property: JsonPropertyName("events")] IReadOnlyList<AuditEventDto> Events);
+
+/// <summary>
+/// Mirror of one audit event row. <c>EventType</c> comes back as a string because the
+/// WebApi registers <c>JsonStringEnumConverter</c> globally; the page maps it to a
+/// friendly label and resolves the recipient name via the parent's Recipients list.
+/// </summary>
+public sealed record AuditEventDto(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("eventType")] string EventType,
+    [property: JsonPropertyName("occurredAtUtc")] DateTimeOffset OccurredAtUtc,
+    [property: JsonPropertyName("recipientId")] Guid? RecipientId,
+    [property: JsonPropertyName("ipAddress")] string? IpAddress,
+    [property: JsonPropertyName("documentHashAtEvent")] string? DocumentHashAtEvent);
+
 /// <summary>Working state for one designer-placed field. Index is local to the editor.</summary>
 public sealed class DesignerField
 {

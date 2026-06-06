@@ -40,8 +40,12 @@ public sealed class DbOtpChallengeStore : IOtpChallengeStore
             CodeHash = hash,
             Salt = salt,
             ExpiresAtUtc = challenge.ExpiresAtUtc,
-            CreatedAtUtc = DateTimeOffset.UtcNow,
-            FailedAttempts = 0,
+            // v1.3 #136 — propagate caller-supplied CreatedAtUtc when set so the
+            // rate-limit window math agrees with what the OTP provider saw at issue
+            // time. Falls back to UtcNow for pre-1.3 callers using the 4- or 5-arg
+            // OtpChallenge constructor.
+            CreatedAtUtc = challenge.CreatedAtUtcOrNow,
+            FailedAttempts = challenge.FailedAttempts,
         };
 
         await using var scope = _scopeFactory.CreateAsyncScope();
@@ -82,7 +86,9 @@ public sealed class DbOtpChallengeStore : IOtpChallengeStore
             entity.VerificationId,
             entity.Identifier,
             Code: $"{Sentinel}{entity.Salt}:{entity.CodeHash}",
-            entity.ExpiresAtUtc);
+            entity.ExpiresAtUtc,
+            FailedAttempts: entity.FailedAttempts,
+            CreatedAtUtc: entity.CreatedAtUtc);
     }
 
     /// <inheritdoc />
@@ -97,6 +103,79 @@ public sealed class DbOtpChallengeStore : IOtpChallengeStore
             .Where(c => c.VerificationId == verificationId)
             .ExecuteDeleteAsync(cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> IncrementFailedAttemptsAsync(
+        string verificationId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(verificationId);
+
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var ctx = scope.ServiceProvider.GetRequiredService<StampdDbContext>();
+
+        // ExecuteUpdate translates to a single round-trip UPDATE ... SET FailedAttempts =
+        // FailedAttempts + 1 — atomic against concurrent verify spam without an explicit
+        // transaction. We read back the new count via a follow-up Find; doing it as one
+        // statement would need a RETURNING clause, which EF Core 10 doesn't expose
+        // portably across providers yet.
+        var rowsAffected = await ctx.Set<OtpChallengeEntity>()
+            .Where(c => c.VerificationId == verificationId)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(c => c.FailedAttempts, c => c.FailedAttempts + 1),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (rowsAffected == 0)
+        {
+            return -1;
+        }
+
+        var updated = await ctx.Set<OtpChallengeEntity>()
+            .AsNoTracking()
+            .Where(c => c.VerificationId == verificationId)
+            .Select(c => (int?)c.FailedAttempts)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return updated ?? -1;
+    }
+
+    /// <inheritdoc />
+    public async Task<int> CountInitiatesSinceAsync(
+        string identifier,
+        DateTimeOffset since,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var ctx = scope.ServiceProvider.GetRequiredService<StampdDbContext>();
+
+        // Two-phase scan because EF Core 10's SQLite provider can't translate
+        // DateTimeOffset comparison to SQL (column is stored as TEXT, same v1.2 #115
+        // issue Doc 16 named — but OtpChallengeEntity never got an epoch shadow
+        // column, so the comparison happens client-side):
+        //
+        //   Phase 1: server-side translatable filter on Identifier (cheap, indexed
+        //            implicitly by the few rows that ever match a single email).
+        //   Phase 2: pull just the CreatedAtUtc values and count the in-window ones
+        //            in .NET. The filtered set is bounded by recent-issuance rate;
+        //            for the default 15-min window with the default 5-per-window cap
+        //            this is at most a handful of values per Initiate call.
+        //
+        // Adding an epoch shadow column to OtpChallengeEntity would let this be one
+        // server-side query — a v1.4 candidate when adopters' OTP volume justifies
+        // the per-provider migration.
+        var recentTimestamps = await ctx.Set<OtpChallengeEntity>()
+            .AsNoTracking()
+            .Where(c => c.Identifier == identifier)
+            .Select(c => c.CreatedAtUtc)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return recentTimestamps.Count(t => t >= since);
     }
 
     /// <summary>
