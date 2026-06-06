@@ -34,4 +34,22 @@ public sealed class AuditEvent
 
     /// <summary>True after a GDPR erasure has redacted personal fields. Provenance (Id, EventType, OccurredAtUtc) remains intact.</summary>
     public bool IsRedacted { get; set; }
+
+    /// <summary>
+    /// v2.0 Slice D — JWT <c>sub</c> claim of the authenticated user who triggered this
+    /// event, when applicable. Null for events that originate from the recipient flow
+    /// (RecipientViewed/RecipientSigned/etc. — the recipient is identified via
+    /// <see cref="RecipientId"/>, not this field), background workers, or any pre-v2
+    /// audit row. Populated for admin operations (SigningRequestVoided, RecipientInvitationResent)
+    /// and sender-side dispatches.
+    /// </summary>
+    public string? ActorUserId { get; set; }
+
+    /// <summary>
+    /// v2.0 Slice D — the role the actor was acting in at event time (most-privileged
+    /// role held at the moment, per <c>ICurrentActorContext.ActiveRole</c>). Stored
+    /// denormalized so audit consumers can filter "all admin actions" without joining
+    /// to a separate user table. Same null semantics as <see cref="ActorUserId"/>.
+    /// </summary>
+    public string? ActorRole { get; set; }
 }

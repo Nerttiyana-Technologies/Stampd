@@ -178,6 +178,77 @@ h1:focus { outline: none; }
     gap: 0.5rem;
 }
 
+/* v2.0 — variant for buttons placed on the deep-navy gradient hero (RequestDetail's
+   "Back to list", etc). The default ghost button uses dark text which vanishes
+   on the gradient. This modifier flips to white text + translucent white surface
+   matching the topbar's theme toggle. */
+.stampd-btn--on-dark {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.stampd-btn--on-dark:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.55);
+    color: #ffffff;
+}
+
+/* v2.0 — compact icon button used in dense table action columns. Tooltip on hover via
+   the standard title attribute; aria-label keeps the surface accessible. */
+.stampd-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--stampd-border);
+    background: var(--stampd-surface);
+    color: var(--stampd-text);
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.stampd-icon-btn:hover {
+    background: var(--stampd-surface-alt);
+    border-color: var(--stampd-accent);
+    color: var(--stampd-accent);
+    transform: translateY(-1px);
+}
+
+.stampd-icon-btn--primary {
+    background: var(--stampd-accent);
+    border-color: var(--stampd-accent);
+    color: #ffffff !important;  /* force-white the SVG/text — FluentUI's `a` reset can win on hover for anchor-styled icon buttons */
+}
+
+.stampd-icon-btn--primary:hover,
+.stampd-icon-btn--primary:focus,
+.stampd-icon-btn--primary:visited {
+    background: var(--stampd-accent-hover, #0b3c6e);
+    border-color: var(--stampd-accent-hover, #0b3c6e);
+    color: #ffffff !important;
+}
+
+/* v2.0 — signed-in user chip in the topbar right slot. Sits next to the theme toggle. */
+.stampd-user-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.25rem 0.65rem 0.25rem 0.75rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 20px;
+    color: var(--stampd-topbar-fg);
+}
+
+.stampd-user-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
 .stampd-theme-toggle {
     appearance: none;
     border: 1px solid rgba(255, 255, 255, 0.25);
@@ -427,12 +498,18 @@ code.stampd-code {
 
 .stampd-btn--primary {
     background: linear-gradient(135deg, #0b3c6e 0%, #1a5698 100%);
-    color: #fff;
+    color: #fff !important;  /* FluentUI's `a` reset can win on hover; force-white the text on primary so links styled as buttons stay legible across both themes */
     box-shadow: 0 2px 8px rgba(11, 60, 110, 0.3);
 }
 .stampd-btn--primary:hover:not(:disabled) {
     background: linear-gradient(135deg, #0b3c6e 0%, #2b7fce 100%);
+    color: #fff !important;
     transform: translateY(-1px);
+}
+.stampd-btn--primary:visited,
+.stampd-btn--primary:active,
+.stampd-btn--primary:focus {
+    color: #fff !important;
 }
 .stampd-btn--primary:disabled {
     background: var(--stampd-border);
@@ -443,11 +520,15 @@ code.stampd-code {
 
 .stampd-btn--ghost {
     background: transparent;
-    color: var(--stampd-fg);
+    color: var(--stampd-fg) !important;  /* FluentUI's anchor reset wins on hover/visited for <a class="stampd-btn--ghost"> (Edit, Download), hiding the text. Force the foreground token across every state. */
     border-color: var(--stampd-border);
 }
-.stampd-btn--ghost:hover {
+.stampd-btn--ghost:hover,
+.stampd-btn--ghost:focus,
+.stampd-btn--ghost:visited,
+.stampd-btn--ghost:active {
     background: var(--stampd-surface-alt);
+    color: var(--stampd-fg) !important;
     border-color: var(--stampd-accent);
 }
 
@@ -589,7 +670,10 @@ code.stampd-code {
     border: 1px solid var(--stampd-border);
     border-radius: 8px;
     cursor: crosshair;
-    background: var(--stampd-surface);
+    /* Always white so the dark ink the JS pen draws shows up in both themes. The
+       surface variable shifts to deep navy in dark mode, which made signatures
+       invisible against their own canvas. */
+    background: #ffffff;
     touch-action: none;
     width: 100%;
     height: 140px;

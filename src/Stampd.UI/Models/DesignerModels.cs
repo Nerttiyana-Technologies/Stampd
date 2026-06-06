@@ -122,6 +122,23 @@ public sealed record SigningRequestSummary(
     [property: JsonPropertyName("recipients")] IReadOnlyList<RecipientViewDto> Recipients);
 
 /// <summary>
+/// v2.0 Slice B — filter + sort knobs the SigningRequests page packs into the API
+/// query string. All fields are optional; a fully-null filter means "v1.3 behavior:
+/// newest dispatched first, no filter". Status is multi-select (chip group); date
+/// fields cover the dispatched-at window only — completed-at filtering can be a
+/// future polish.
+/// </summary>
+public sealed record SigningRequestListFilter(
+    IReadOnlyList<string>? Status = null,
+    Guid? TemplateId = null,
+    string? SenderEmail = null,
+    string? RecipientEmail = null,
+    DateTimeOffset? DispatchedFrom = null,
+    DateTimeOffset? DispatchedTo = null,
+    string? SortBy = null,
+    string? Direction = null);
+
+/// <summary>
 /// Mirror of the paged envelope returned by GET /api/signing-requests (v1.3 #158).
 /// <c>TotalPages</c> is always at least 1 even when <c>Total</c> is 0, so UI math
 /// reads "Page 1 of 1" rather than a degenerate "Page 1 of 0".
@@ -170,6 +187,99 @@ public sealed record AuditEventDto(
     [property: JsonPropertyName("recipientId")] Guid? RecipientId,
     [property: JsonPropertyName("ipAddress")] string? IpAddress,
     [property: JsonPropertyName("documentHashAtEvent")] string? DocumentHashAtEvent);
+
+/// <summary>
+/// v2.0 Slice A — mirror of GET /api/admin/dashboard. Hero-row tile counts.
+/// </summary>
+public sealed record AdminDashboardSummary(
+    [property: JsonPropertyName("total")] int Total,
+    [property: JsonPropertyName("completed")] int Completed,
+    [property: JsonPropertyName("inProgress")] int InProgress,
+    [property: JsonPropertyName("declined")] int Declined,
+    [property: JsonPropertyName("completionRatePercent")] double CompletionRatePercent);
+
+/// <summary>v2.0 Slice A — mirror of GET /api/admin/dashboard/trend.</summary>
+public sealed record AdminDashboardTrend(
+    [property: JsonPropertyName("windowDays")] int WindowDays,
+    [property: JsonPropertyName("buckets")] IReadOnlyList<AdminTrendBucket> Buckets);
+
+public sealed record AdminTrendBucket(
+    [property: JsonPropertyName("date")] string Date,
+    [property: JsonPropertyName("dispatched")] int Dispatched,
+    [property: JsonPropertyName("completed")] int Completed);
+
+/// <summary>v2.0 Slice A — mirror of GET /api/admin/dashboard/top-templates.</summary>
+public sealed record AdminTopTemplates(
+    [property: JsonPropertyName("take")] int Take,
+    [property: JsonPropertyName("items")] IReadOnlyList<AdminTopTemplateRow> Items);
+
+public sealed record AdminTopTemplateRow(
+    [property: JsonPropertyName("templateId")] Guid TemplateId,
+    [property: JsonPropertyName("templateName")] string TemplateName,
+    [property: JsonPropertyName("total")] int Total,
+    [property: JsonPropertyName("completed")] int Completed,
+    [property: JsonPropertyName("completionRatePercent")] double CompletionRatePercent);
+
+/// <summary>v2.0 Slice D — mirror of POST /api/admin/cleanup-demo response.</summary>
+public sealed record CleanupDemoResult(
+    [property: JsonPropertyName("signingRequestsDeleted")] int SigningRequestsDeleted,
+    [property: JsonPropertyName("recipientsDeleted")] int RecipientsDeleted,
+    [property: JsonPropertyName("signedDocumentsDeleted")] int SignedDocumentsDeleted,
+    [property: JsonPropertyName("auditEventsDeleted")] int AuditEventsDeleted,
+    [property: JsonPropertyName("otpChallengesDeleted")] int OtpChallengesDeleted,
+    [property: JsonPropertyName("webhookDeliveriesDeleted")] int WebhookDeliveriesDeleted);
+
+/// <summary>v2.0 Slice D — mirror of bulk-op result (void / resend).</summary>
+public sealed record BulkOperationResult(
+    [property: JsonPropertyName("succeeded")] int Succeeded,
+    [property: JsonPropertyName("failed")] int Failed,
+    [property: JsonPropertyName("items")] IReadOnlyList<BulkOperationItem> Items);
+
+public sealed record BulkOperationItem(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("success")] bool Success,
+    [property: JsonPropertyName("error")] string? Error);
+
+/// <summary>v2.0 Slice C — GET /api/admin/analytics/funnel mirror.</summary>
+public sealed record AdminAnalyticsFunnel(
+    [property: JsonPropertyName("windowDays")] int WindowDays,
+    [property: JsonPropertyName("total")] int Total,
+    [property: JsonPropertyName("stages")] AdminFunnelStages Stages,
+    [property: JsonPropertyName("dropOff")] AdminFunnelDropOff DropOff,
+    [property: JsonPropertyName("conversionRatePercent")] double ConversionRatePercent);
+
+public sealed record AdminFunnelStages(
+    [property: JsonPropertyName("invited")] int Invited,
+    [property: JsonPropertyName("viewed")] int Viewed,
+    [property: JsonPropertyName("signed")] int Signed,
+    [property: JsonPropertyName("declined")] int Declined,
+    [property: JsonPropertyName("expired")] int Expired);
+
+public sealed record AdminFunnelDropOff(
+    [property: JsonPropertyName("invitedToViewedPercent")] double InvitedToViewedPercent,
+    [property: JsonPropertyName("viewedToSignedPercent")] double ViewedToSignedPercent);
+
+/// <summary>v2.0 Slice C — GET /api/admin/analytics/time-to-sign mirror.</summary>
+public sealed record AdminTimeToSign(
+    [property: JsonPropertyName("windowDays")] int WindowDays,
+    [property: JsonPropertyName("take")] int Take,
+    [property: JsonPropertyName("items")] IReadOnlyList<AdminTimeToSignRow> Items);
+
+public sealed record AdminTimeToSignRow(
+    [property: JsonPropertyName("templateId")] Guid TemplateId,
+    [property: JsonPropertyName("templateName")] string TemplateName,
+    [property: JsonPropertyName("signedCount")] int SignedCount,
+    [property: JsonPropertyName("avgMinutes")] double AvgMinutes,
+    [property: JsonPropertyName("medianMinutes")] double MedianMinutes);
+
+/// <summary>v2.0 Slice C — GET /api/admin/analytics/identity-verification mirror.</summary>
+public sealed record AdminIdentityVerification(
+    [property: JsonPropertyName("windowDays")] int WindowDays,
+    [property: JsonPropertyName("requiredCount")] int RequiredCount,
+    [property: JsonPropertyName("verifiedCount")] int VerifiedCount,
+    [property: JsonPropertyName("verifyRatePercent")] double VerifyRatePercent,
+    [property: JsonPropertyName("initiatesCount")] int InitiatesCount,
+    [property: JsonPropertyName("lockedOutCount")] int LockedOutCount);
 
 /// <summary>Working state for one designer-placed field. Index is local to the editor.</summary>
 public sealed class DesignerField

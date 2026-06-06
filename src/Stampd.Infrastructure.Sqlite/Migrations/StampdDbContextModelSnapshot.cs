@@ -63,6 +63,15 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.Property<string>("UserAgent")
                         .HasMaxLength(512)
                         .HasColumnType("TEXT");
+                    b.Property<string>("ActorRole")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ActorUserId")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+
 
                     b.HasKey("Id");
 
@@ -73,6 +82,8 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.HasIndex("TenantId", "EventType");
 
                     b.HasIndex("TenantId", "OccurredAtUtc");
+                    b.HasIndex("TenantId", "ActorUserId", "OccurredAtUtc");
+
 
                     b.ToTable("AuditEvents", (string)null);
                 });

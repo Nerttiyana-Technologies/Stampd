@@ -384,7 +384,32 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         };
     });
 
-builder.Services.AddAuthorization();
+// v2.0 Slice D — server-side actor context for audit attribution. Scoped so each
+// HTTP request gets a fresh read of HttpContext.User. Background workers and tests
+// that don't have an HttpContext get IsAuthenticated=false / UserId=null which is
+// the correct shape for "system-initiated action".
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Stampd.Core.Authorization.ICurrentActorContext,
+    Stampd.WebApi.Auth.HttpCurrentActorContext>();
+
+// v2.0 — three named policies map onto the StampdRoles taxonomy. Endpoint groups gate
+// themselves on the appropriate policy (see managementGroup / adminGroup wiring below).
+// Default fallback policy is RequireAuthenticatedUser so any endpoint that forgets to
+// tag a policy still requires a valid JWT — defense-in-depth.
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy(Stampd.Core.Authorization.StampdRoles.Admin, p => p
+        .RequireAuthenticatedUser()
+        .RequireRole(Stampd.Core.Authorization.StampdRoles.Admin))
+    .AddPolicy("SenderOrAdmin", p => p
+        .RequireAuthenticatedUser()
+        .RequireRole(
+            Stampd.Core.Authorization.StampdRoles.Sender,
+            Stampd.Core.Authorization.StampdRoles.Admin))
+    .AddPolicy("AuthenticatedAny", p => p
+        .RequireAuthenticatedUser())
+    .SetFallbackPolicy(new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build());
 
 // ---- Rate limiting ----
 builder.Services.AddRateLimiter(options =>
@@ -476,20 +501,33 @@ anonGroup.MapRecipientSigning();
 // Demo bootstrap — registers /api/demo/seed only in Development.
 anonGroup.MapDemo(app.Environment);
 
-// Sign endpoints: rate-limited AND require auth.
+// Sign endpoints: rate-limited AND require auth. v2.0 — gate on SenderOrAdmin so
+// view-only users can't submit signatures.
 var signGroup = app.MapGroup("")
-    .RequireAuthorization()
+    .RequireAuthorization("SenderOrAdmin")
     .RequireRateLimiting("sign");
 signGroup.MapSign();
 signGroup.MapBinarySign();
 
-// Management endpoints: auth required, no rate limit (admin actions, not sign hot path).
-var managementGroup = app.MapGroup("").RequireAuthorization();
+// Management endpoints: any authenticated user can read; write semantics get enforced
+// inside each endpoint handler as v2.0 layers in. The group-level policy is
+// AuthenticatedAny so ReadOnly users hit the same surface for listing/viewing — Slice D
+// will introduce per-action policy checks (void / regenerate / delete) inside the
+// handlers when bulk operations land.
+var managementGroup = app.MapGroup("").RequireAuthorization("AuthenticatedAny");
 managementGroup.MapTemplates();
 managementGroup.MapSigningRequests();
 managementGroup.MapSignedDocuments();
 managementGroup.MapBulkSend();
 managementGroup.MapWebhooks();
+
+// v2.0 — admin-only surface. Slice A maps /api/admin/dashboard, /api/admin/dashboard/trend,
+// /api/admin/dashboard/top-templates here. Slices B/C/D extend with bulk operations and
+// cross-sender analytics.
+var adminGroup = app.MapGroup("").RequireAuthorization(Stampd.Core.Authorization.StampdRoles.Admin);
+adminGroup.MapAdminDashboard();
+adminGroup.MapAdminOperations();
+adminGroup.MapAdminAnalytics();
 
 try
 {
