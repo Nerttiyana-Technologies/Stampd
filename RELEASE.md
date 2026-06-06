@@ -36,7 +36,7 @@ The following 21 library projects are published as NuGet packages on every relea
 
 The version lives in **`Directory.Build.props`** in the `<Version>` element. Every library inherits from it, so a single bump propagates to all 21 packages.
 
-For pre-releases, set `<VersionSuffix>preview.1</VersionSuffix>` (or `rc.1`, `beta.1`, etc.) in the same file. The resulting package versions look like `1.3.0-preview.1`.
+For pre-releases, set `<VersionSuffix>preview.1</VersionSuffix>` (or `rc.1`, `beta.1`, etc.) in the same file. The resulting package versions look like `2.0.0-preview.1`.
 
 ## One-time setup (do this once per maintainer)
 
@@ -65,14 +65,14 @@ For pre-releases, set `<VersionSuffix>preview.1</VersionSuffix>` (or `rc.1`, `be
 Edit `Directory.Build.props`:
 
 ```xml
-<Version>1.3.0</Version>
+<Version>2.0.0</Version>
 ```
 
 Commit:
 
 ```bash
 git add Directory.Build.props
-git commit -m "chore(release): bump version to 1.3.0"
+git commit -m "chore(release): bump version to 2.0.0"
 ```
 
 ### 2. Verify locally
@@ -82,7 +82,7 @@ Pack against the live source and inspect what nuget.org would see:
 ```bash
 dotnet pack Stampd.slnx --configuration Release --output ./artifacts
 ls artifacts/                                # 21 .nupkg + 21 .snupkg
-unzip -p artifacts/Stampd.Core.1.3.0.nupkg Stampd.Core.nuspec | head -40
+unzip -p artifacts/Stampd.Core.2.0.0.nupkg Stampd.Core.nuspec | head -40
 ```
 
 Sanity-check: every `.nupkg` is present, descriptions look right, the README opens with the right text on nuget.org's preview.
@@ -90,9 +90,9 @@ Sanity-check: every `.nupkg` is present, descriptions look right, the README ope
 ### 3. Tag and push
 
 ```bash
-git tag v1.3.0
+git tag v2.0.0
 git push origin main
-git push origin v1.3.0
+git push origin v2.0.0
 ```
 
 The tag push triggers `.github/workflows/release.yml`. The workflow:
@@ -114,9 +114,9 @@ After the run finishes (typically 3–5 minutes), allow nuget.org's indexer ~10 
 mkdir /tmp/stampd-smoke && cd /tmp/stampd-smoke
 dotnet new console -n SmokeTest
 cd SmokeTest
-dotnet add package Stampd.Core --version 1.3.0
-dotnet add package Stampd.Engine --version 1.3.0
-dotnet add package Stampd.Crypto.LocalCertificate --version 1.3.0
+dotnet add package Stampd.Core --version 2.0.0
+dotnet add package Stampd.Engine --version 2.0.0
+dotnet add package Stampd.Crypto.LocalCertificate --version 2.0.0
 dotnet build
 ```
 
@@ -135,9 +135,51 @@ Useful for validating packaging changes before tagging.
 
 Mistakes happen. From the nuget.org package page, click **Manage** → **Listed: Yes → No** on the bad version. The package stays available for adopters who already pinned it (NuGet's deprecation contract) but disappears from search and from `dotnet add package` without an explicit version.
 
-After yanking, bump `Directory.Build.props` to the next patch (e.g. `1.3.0 → 1.3.1`) and re-release. Never reuse a version number.
+After yanking, bump `Directory.Build.props` to the next patch (e.g. `2.0.0 → 2.0.1`) and re-release. Never reuse a version number.
 
 ## Upgrade notes
+
+### Upgrading from v1.3.0 → v2.0.0
+
+v2.0 is a MAJOR release. The library API surface stays backwards-compatible (no method signatures removed or renamed), but the deployment shape changes in three ways adopters need to plan for: a new EF migration, new authorization policies enforced on admin endpoints, and a new role claim required in production JWTs.
+
+#### 1. Apply V14 migration on every provider
+
+`AuditEvent` gains two columns — `ActorUserId` (nvarchar(256), nullable) and `ActorRole` (nvarchar(64), nullable) — plus a composite index `(TenantId, ActorUserId, OccurredAtUtc)` to support the "which admin did how many things in window N" query shape. The columns are nullable; historical rows backfill to NULL (no synthetic attribution).
+
+```bash
+dotnet ef database update --project src/Stampd.Infrastructure.Sqlite
+dotnet ef database update --project src/Stampd.Infrastructure.SqlServer
+dotnet ef database update --project src/Stampd.Infrastructure.Postgres
+```
+
+Skip the providers you don't run. Stampd starts up against an un-migrated database, but write paths that emit audit rows will throw on column-not-found until the migration applies.
+
+#### 2. New admin endpoints are gated by the `Admin` policy
+
+The admin dashboard, analytics, and bulk-operations endpoints under `/api/admin/*` enforce `RequireAuthorization("Admin")`. The policy is registered automatically in `Program.cs` and requires the authenticated principal to carry a `role` claim with value `Admin`. The role taxonomy:
+
+- **Admin** — full read + write + admin-tile + bulk-operations + demo cleanup.
+- **Sender** — can create templates, dispatch signing requests, see their own requests.
+- **ReadOnly** — list/view only, no writes.
+
+The dev JWT minter (`POST /api/auth/dev-token`, available only when `ASPNETCORE_ENVIRONMENT=Development`) accepts a `roles` array in the request body so existing demo flows continue to work end-to-end. Production deployments using the standard JWT bearer middleware must add the `role` claim to issued tokens — the role string lands at `ClaimTypes.Role` (`http://schemas.microsoft.com/ws/2008/06/identity/claims/role`).
+
+A principal with no role claim has read access to the workflow surfaces but is rejected from `/api/admin/*`. This is additive — adopters not using the admin dashboard see no behavior change.
+
+#### 3. `AuditEvent.ActorUserId` + `ActorRole` populated automatically
+
+The `SigningWorkflowService` now resolves the current authenticated principal via `ICurrentActorContext` (HTTP-context-backed in the WebApi) and stamps every audit row with `ActorUserId` + `ActorRole`. Recipient-side events (where auth is the per-recipient access token, not an authenticated user) still write `NULL` for both columns. No adopter action required — the wiring is transparent.
+
+If you have a custom host that does NOT use the WebApi composition root, register an `ICurrentActorContext` implementation in DI. The default `HttpCurrentActorContext` reads from `IHttpContextAccessor.HttpContext.User`.
+
+#### 4. `GET /api/signing-requests` accepts new optional query parameters
+
+Slice B added `status`, `senderEmail`, `recipientEmail`, `dispatchedFrom`, `dispatchedTo`, `sortBy`, and `direction` query parameters. All are optional and backwards-compatible — clients on v1.3 contracts continue to receive the same paged envelope shape. The `completed` sort key routes through `CreatedAtUtcEpochMs` as a proxy due to an EF Core SQLite translation limit on nullable `DateTimeOffset` ordering; v2.1 (#212) adds a dedicated `CompletedAtUtcEpochMs` shadow column to fix that.
+
+#### 5. UI: theme persistence across navigation
+
+The Blazor UI fixes a v1.3 issue where the user's theme choice (light/dark) was wiped on every page transition because Blazor enhanced-navigation patches `<html>` attributes against the server-rendered shell. The fix is JS-only — head-inline restore script + `enhancedload` listener + MutationObserver guard. No config knobs, no adopter action.
 
 ### Upgrading from v1.2.0 → v1.3.0
 
@@ -190,14 +232,14 @@ Up from 2 in v1.2. The third call is the new PAdES Document Timestamp (Part 4 ca
 
 ```xml
 <!-- Directory.Build.props -->
-<Version>1.3.0</Version>
+<Version>2.0.0</Version>
 <VersionSuffix>preview.1</VersionSuffix>
 ```
 
 ```bash
-git commit -am "chore(release): 1.3.0-preview.1"
-git tag v1.3.0-preview.1
-git push origin main v1.3.0-preview.1
+git commit -am "chore(release): 2.0.0-preview.1"
+git tag v2.0.0-preview.1
+git push origin main v2.0.0-preview.1
 ```
 
 Pre-release packages are listed on nuget.org but the **Latest Stable** dropdown filters them out by default. Consumers opt in with `--prerelease` on `dotnet add package` or a `*-preview.*` floating version.
