@@ -47,7 +47,10 @@ jobs:
         run: dotnet --info
 
       - name: Restore
-        run: dotnet restore Stampd.slnx
+        # --locked-mode: fail the restore if any package's resolved version drifts
+        # from what's recorded in packages.lock.json. Closes the OSSF Scorecard
+        # PinnedDependenciesID "nugetCommand not pinned by hash" finding.
+        run: dotnet restore Stampd.slnx --locked-mode
 
       - name: Build (Release)
         run: dotnet build Stampd.slnx --configuration Release --no-restore

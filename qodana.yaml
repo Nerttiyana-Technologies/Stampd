@@ -52,7 +52,9 @@ bootstrap: |
 
   # --use-lock-file: write packages.lock.json next to every csproj so the
   #   Ultimate SCA pipeline has a deterministic dependency manifest to scan
-  #   against CVE + license databases.
+  #   against CVE + license databases. (Also enforced solution-wide by
+  #   <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile> in
+  #   Directory.Build.props — both belt and braces.)
   # --force-evaluate: refresh transitive deps so the lock files reflect current state.
   dotnet restore Stampd.sln --use-lock-file --force-evaluate
 

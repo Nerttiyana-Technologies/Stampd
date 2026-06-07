@@ -7,9 +7,22 @@ name: Qodana
 on:
   workflow_dispatch:
   pull_request:
-  push:
-    branches:
-      - main
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  # Push-to-main trigger removed for cost — Qodana is slow (~5 min) and we
+  # already run it on every PR. Re-add `push: branches: [main]` if you want
+  # baseline scans on direct main pushes; current state assumes PR coverage.
+
+# Cancel in-flight Qodana runs when new commits land on the same PR.
+concurrency:
+  group: qodana-${{ github.ref }}
+  cancel-in-progress: true
+
+# File-level least-privilege default. Per-job permissions below escalate where
+# strictly needed. Required by OSSF Scorecard TokenPermissionsID rule.
+permissions:
+  contents: read
 
 jobs:
   qodana:

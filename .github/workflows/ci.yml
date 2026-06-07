@@ -6,8 +6,29 @@ name: CI
 on:
   push:
     branches: [ main ]
+    # Skip CI when only docs/markdown/license change — no need to spin up a runner
+    # for a typo fix. Edit the lists if you want CI on docs changes.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/CODEOWNERS'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/CODEOWNERS'
+
+# Cancel in-flight CI runs when a new push lands on the same branch / PR.
+# Biggest single cost saver — without this, a rapid-fire push spree multiplies
+# minute consumption linearly.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -25,9 +46,16 @@ jobs:
         uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           global-json-file: global.json
+          # Built-in NuGet cache — keyed by every packages.lock.json. Speeds up
+          # restore from ~30s cold to ~3s warm, cutting average CI minute spend.
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
       - name: Restore
-        run: dotnet restore Stampd.slnx
+        # --locked-mode: fail the restore if any package's resolved version drifts
+        # from what's recorded in packages.lock.json. Closes the OSSF Scorecard
+        # PinnedDependenciesID "nugetCommand not pinned by hash" finding.
+        run: dotnet restore Stampd.slnx --locked-mode
 
       - name: Build (Release)
         run: dotnet build Stampd.slnx --configuration Release --no-restore
