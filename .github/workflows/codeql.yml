@@ -1,0 +1,82 @@
+name: "CodeQL Advanced"
+
+# Scans csharp + javascript-typescript + actions (workflow YAML). All three
+# run on ubuntu-latest (the Default Setup used to spin up Windows for csharp,
+# which was the macOS/Windows billing line item we're killing).
+#
+# Cost notes:
+#   - 3 languages × 1 runner each = 3 parallel jobs per event
+#   - concurrency cancel + paths-ignore + weekly schedule keep this affordable
+#   - Public repos get free Linux minutes, so this is $0 if Stampd is public
+
+on:
+  push:
+    branches: [ "main" ]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/CODEOWNERS'
+  pull_request:
+    branches: [ "main" ]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/CODEOWNERS'
+  schedule:
+    - cron: '18 14 * * 5'   # weekly on Friday — keeps the security tab fresh
+
+# Cancel in-flight CodeQL runs when new commits land on the same ref. Without
+# this, rapid-fire pushes triple-up since CodeQL runs 3 languages in parallel.
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+# File-level least-privilege default. Per-job permissions below escalate
+# where strictly needed. Satisfies OSSF Scorecard's TokenPermissionsID rule.
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # upload SARIF to the code-scanning dashboard
+      packages: read           # fetch CodeQL packs
+      actions: read            # private-repo workflows only — no-op for public
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: csharp
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      - name: Checkout repository
+        # Pinned to v4.2.2 SHA. Dependabot keeps this current via the github-actions
+        # ecosystem in .github/dependabot.yml.
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Initialize CodeQL
+        # CodeQL action v4 latest SHA — Dependabot will bump on new releases.
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # Optional: layer security-extended (slower but more findings)
+          # queries: security-extended,security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
