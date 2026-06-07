@@ -11,8 +11,15 @@ on:
   # https://github.com/ossf/scorecard/blob/main/docs/checks.md#maintained
   schedule:
     - cron: '18 4 * * 6'
-  push:
-    branches: [ "main" ]
+  # Push trigger removed for cost — weekly schedule is sufficient for the
+  # Scorecard's purpose (security posture trends over time, not per-commit).
+  # Re-add `push: branches: [main]` if you want fresh scores after each change.
+  workflow_dispatch:
+
+# Cancel duplicate runs.
+concurrency:
+  group: scorecard-${{ github.ref }}
+  cancel-in-progress: true
 
 # Declare default permissions as read only.
 permissions: read-all

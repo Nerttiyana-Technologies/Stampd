@@ -1,0 +1,24 @@
+# Code owners for Stampd.
+#
+# GitHub uses this file to auto-request reviews on PRs. When combined with the
+# branch protection rule "Require review from Code Owners", a change can't
+# merge until the relevant owner approves. Closes OSSF Scorecard's
+# BranchProtectionID "codeowners review is not required" warning.
+#
+# Format: <pattern> <@user> [@user...]
+# More specific patterns at the bottom override more general patterns at the top.
+
+# Default — everything in the repo needs review from the maintainer.
+*                                            @isureshsubramanian
+
+# Cryptography + signing paths — extra-sensitive, always reviewed by the
+# maintainer regardless of who pushes other changes in the same PR.
+/src/Stampd.Engine/Pades/                    @isureshsubramanian
+/src/Stampd.Engine/Sealing/                  @isureshsubramanian
+/src/Stampd.Crypto.*/                        @isureshsubramanian
+/src/Stampd.Timestamp.*/                     @isureshsubramanian
+/tests/Stampd.Engine.Tests/                  @isureshsubramanian
+
+# Security policy + workflows — protection in depth.
+/SECURITY.md                                 @isureshsubramanian
+/.github/                                    @isureshsubramanian

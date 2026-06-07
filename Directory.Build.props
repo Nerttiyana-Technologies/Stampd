@@ -20,6 +20,15 @@
                shape every time. Not actionable.
     -->
     <NoWarn>$(NoWarn);CS1591;CA1720;CA1861</NoWarn>
+
+    <!--
+      Enforce NuGet lock files solution-wide. Generates packages.lock.json next
+      to every csproj on restore and makes the build fail if any transitive
+      version drifts from what's locked. Required by OSSF Scorecard's
+      PinnedDependenciesID rule (nugetCommand not pinned by hash) and by
+      Qodana Ultimate's SCA pipeline (reads packages.lock.json for CVE scan).
+    -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <PropertyGroup Label="Package metadata">
