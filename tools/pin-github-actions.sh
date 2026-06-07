@@ -71,8 +71,13 @@ for f in "$WORKFLOW_DIR"/*.yml "$WORKFLOW_DIR"/*.yaml; do
     if [[ ! "$raw" =~ ^([^@]+)@(.+)$ ]]; then
       continue
     fi
-    owner_repo="${BASH_REMATCH[1]}"
+    full_action="${BASH_REMATCH[1]}"
     ref="${BASH_REMATCH[2]}"
+
+    # Sub-path actions like `github/codeql-action/upload-sarif` live inside the
+    # parent repo `github/codeql-action`. Strip the third+ path segments so we
+    # resolve against the actual GitHub repo, not a non-existent sub-repo.
+    owner_repo=$(echo "$full_action" | cut -d/ -f1-2)
 
     # Already pinned (40-char hex SHA)?
     if [[ "$ref" =~ ^[a-f0-9]{40}$ ]]; then
