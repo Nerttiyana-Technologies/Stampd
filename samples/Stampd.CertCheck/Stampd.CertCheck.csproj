@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Stampd.CertCheck</RootNamespace>
+    <AssemblyName>stampd-certcheck</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <Description>
+      Deployment validation tool. Loads a customer's certificate through
+      Stampd's LocalCertificate sealing provider, signs a synthetic PDF, and
+      reports a structured pass/fail summary. Use during deployment to
+      validate cert config before going live, or in customer demos to show
+      the bring-your-own-cert story end-to-end in ~4 seconds.
+    </Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Stampd.Core\Stampd.Core.csproj" />
+    <ProjectReference Include="..\..\src\Stampd.Engine\Stampd.Engine.csproj" />
+    <ProjectReference Include="..\..\src\Stampd.Crypto.LocalCertificate\Stampd.Crypto.LocalCertificate.csproj" />
+    <ProjectReference Include="..\..\src\Stampd.Timestamp.FreeTsa\Stampd.Timestamp.FreeTsa.csproj" />
+  </ItemGroup>
+
+</Project>
