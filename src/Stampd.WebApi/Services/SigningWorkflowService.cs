@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Stampd.Core;
@@ -33,7 +32,7 @@ public sealed class SigningWorkflowService
     private readonly WorkflowEmailOptions? _emailOptions;
     private readonly WebhookDispatcher? _webhookDispatcher;
     private readonly SenderCompletionNotifier? _senderCompletionNotifier;
-    private readonly Stampd.Core.Authorization.ICurrentActorContext? _actorContext;
+    private readonly Core.Authorization.ICurrentActorContext? _actorContext;
     private readonly ILogger<SigningWorkflowService> _logger;
 
     public SigningWorkflowService(
@@ -45,7 +44,7 @@ public sealed class SigningWorkflowService
         WorkflowEmailOptions? emailOptions = null,
         WebhookDispatcher? webhookDispatcher = null,
         SenderCompletionNotifier? senderCompletionNotifier = null,
-        Stampd.Core.Authorization.ICurrentActorContext? actorContext = null,
+        Core.Authorization.ICurrentActorContext? actorContext = null,
         ILogger<SigningWorkflowService>? logger = null)
     {
         _db = db;
@@ -347,6 +346,7 @@ public sealed class SigningWorkflowService
     /// Free-text reason persisted to <c>SigningRequest.TerminationReason</c>. Surfaced
     /// to the sender on the detail page so admins can answer "why was this voided?"
     /// </param>
+    /// <param name="ct"></param>
     public async Task<bool> VoidAsync(
         Guid signingRequestId,
         string? reason,
@@ -527,7 +527,7 @@ public sealed class SigningWorkflowService
         {
             await _webhookDispatcher.EnqueueAsync(
                 WebhookEventType.RecipientViewed,
-                new { SigningRequestId = recipient.SigningRequestId, RecipientId = recipient.Id },
+                new { recipient.SigningRequestId, RecipientId = recipient.Id },
                 ct).ConfigureAwait(false);
         }
 

@@ -41,13 +41,11 @@ internal sealed class PadesRevocationFetcher
 
         // Build the chain. ChainPolicy is permissive — we want to learn the structure even
         // if the signing cert is untrusted (self-signed in dev).
-        using var chain = new X509Chain
+        using var chain = new X509Chain();
+        chain.ChainPolicy = new X509ChainPolicy
         {
-            ChainPolicy = new X509ChainPolicy
-            {
-                RevocationMode = X509RevocationMode.NoCheck,
-                VerificationFlags = X509VerificationFlags.AllFlags,
-            },
+            RevocationMode = X509RevocationMode.NoCheck,
+            VerificationFlags = X509VerificationFlags.AllFlags,
         };
 
         _ = chain.Build(signingCertificate);

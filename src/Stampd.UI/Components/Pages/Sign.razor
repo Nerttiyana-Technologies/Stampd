@@ -1,7 +1,7 @@
 @page "/sign/{AccessToken}"
 @rendermode InteractiveServer
 @inject StampdApiClient Api
-@inject NavigationManager Navigation
+@* @inject NavigationManager Navigation *@
 @inject IJSRuntime JS
 @inject IConfiguration Config
 @implements IAsyncDisposable
@@ -334,7 +334,7 @@ else
             // Try to fetch the actual PDF; fall back to placeholder if the API doesn't
             // expose it (older deployments) or the recipient is in a state that blocks
             // raw access.
-            byte[]? pdfBytes = null;
+            byte[]? pdfBytes;
             try
             {
                 pdfBytes = await Api.GetSourceDocumentAsync(AccessToken, CancellationToken.None);

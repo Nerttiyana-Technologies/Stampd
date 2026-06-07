@@ -15,13 +15,6 @@ namespace Stampd.Core.Identity;
 public sealed class OtpRateLimitExceededException : Exception
 {
     /// <summary>
-    /// The identifier that hit the rate limit (typically the recipient's email address
-    /// or phone number). Useful for logging — should NOT be surfaced to the recipient
-    /// in clear text.
-    /// </summary>
-    public string Identifier { get; }
-
-    /// <summary>
     /// How long the caller should wait before retrying. Maps directly to the HTTP
     /// <c>Retry-After</c> response header.
     /// </summary>
@@ -30,7 +23,6 @@ public sealed class OtpRateLimitExceededException : Exception
     public OtpRateLimitExceededException(string identifier, TimeSpan retryAfter)
         : base($"Too many OTP requests for '{identifier}'. Retry after {retryAfter}.")
     {
-        Identifier = identifier;
         RetryAfter = retryAfter;
     }
 }

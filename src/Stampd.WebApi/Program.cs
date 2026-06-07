@@ -2,7 +2,6 @@ using System.Text;
 using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
@@ -243,7 +242,7 @@ var padesLevel = Enum.TryParse<Stampd.Core.Entities.PAdESLevel>(
     builder.Configuration["Stampd:Pades:TargetLevel"], ignoreCase: true, out var parsedLevel)
     ? parsedLevel
     : Stampd.Core.Entities.PAdESLevel.BT;
-builder.Services.AddSingleton(new Stampd.WebApi.Services.PadesDefaults(padesLevel));
+builder.Services.AddSingleton(new PadesDefaults(padesLevel));
 
 builder.Services.AddSingleton<IStampdEngine>(sp =>
 {
@@ -390,7 +389,7 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
 // the correct shape for "system-initiated action".
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Stampd.Core.Authorization.ICurrentActorContext,
-    Stampd.WebApi.Auth.HttpCurrentActorContext>();
+    HttpCurrentActorContext>();
 
 // v2.0 — three named policies map onto the StampdRoles taxonomy. Endpoint groups gate
 // themselves on the appropriate policy (see managementGroup / adminGroup wiring below).

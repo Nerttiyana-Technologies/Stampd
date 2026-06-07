@@ -1,6 +1,4 @@
 using System.Text.Json;
-
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 using Stampd.Core;
@@ -42,7 +40,7 @@ internal static class BinarySignEndpoint
     private static async Task<IResult> HandleAsync(
         HttpRequest request,
         [FromServices] IStampdEngine engine,
-        [FromServices] Stampd.WebApi.Services.PadesDefaults padesDefaults,
+        [FromServices] Services.PadesDefaults padesDefaults,
         CancellationToken cancellationToken)
     {
         if (!request.HasFormContentType)

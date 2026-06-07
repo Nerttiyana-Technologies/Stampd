@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 using Org.BouncyCastle.Asn1;
-using Org.BouncyCastle.Asn1.Cms;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Cms;
 using Org.BouncyCastle.Math;
@@ -234,7 +233,6 @@ public sealed class PadesBLtaTests
     /// </remarks>
     public sealed class InProcessStubTsaProvider : ITimestampAuthorityProvider
     {
-        private readonly X509Certificate2 _tsaCert;
         private readonly BcX509Certificate _bcTsaCert;
         private readonly Org.BouncyCastle.Crypto.AsymmetricKeyParameter _bcTsaKey;
         private int _callCount;
@@ -242,9 +240,9 @@ public sealed class PadesBLtaTests
 
         public InProcessStubTsaProvider()
         {
-            _tsaCert = CreateTsaCert();
-            _bcTsaCert = DotNetUtilities.FromX509Certificate(_tsaCert);
-            using var rsa = _tsaCert.GetRSAPrivateKey()!;
+            var tsaCert = CreateTsaCert();
+            _bcTsaCert = DotNetUtilities.FromX509Certificate(tsaCert);
+            using var rsa = tsaCert.GetRSAPrivateKey()!;
             _bcTsaKey = DotNetUtilities.GetRsaKeyPair(rsa).Private;
         }
 

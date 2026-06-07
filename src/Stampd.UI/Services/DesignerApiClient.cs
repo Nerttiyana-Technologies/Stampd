@@ -1,5 +1,4 @@
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 
 using Stampd.UI.Models;
@@ -62,10 +61,8 @@ public sealed class DesignerApiClient
         CreateTemplateRequest body,
         CancellationToken ct)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/templates/")
-        {
-            Content = JsonContent.Create(body, options: JsonOptions),
-        };
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/templates/");
+        req.Content = JsonContent.Create(body, options: JsonOptions);
         ApplyBearer(req, bearerToken);
 
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
@@ -121,10 +118,8 @@ public sealed class DesignerApiClient
         UpdateTemplateRequest body,
         CancellationToken ct)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Put, $"/api/templates/{id}")
-        {
-            Content = JsonContent.Create(body, options: JsonOptions),
-        };
+        using var req = new HttpRequestMessage(HttpMethod.Put, $"/api/templates/{id}");
+        req.Content = JsonContent.Create(body, options: JsonOptions);
         ApplyBearer(req, bearerToken);
 
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
@@ -219,10 +214,8 @@ public sealed class DesignerApiClient
             CreateSigningRequestBody body,
             CancellationToken ct)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/signing-requests/")
-        {
-            Content = JsonContent.Create(body, options: JsonOptions),
-        };
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/signing-requests/");
+        req.Content = JsonContent.Create(body, options: JsonOptions);
         ApplyBearer(req, bearerToken);
 
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
@@ -333,10 +326,8 @@ public sealed class DesignerApiClient
         string? reason,
         CancellationToken ct)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/admin/signing-requests/void")
-        {
-            Content = JsonContent.Create(new { ids, reason }, options: JsonOptions),
-        };
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/admin/signing-requests/void");
+        req.Content = JsonContent.Create(new { ids, reason }, options: JsonOptions);
         ApplyBearer(req, bearerToken);
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode) return null;
@@ -349,10 +340,8 @@ public sealed class DesignerApiClient
         IReadOnlyList<Guid> recipientIds,
         CancellationToken ct)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/admin/signing-requests/resend-invitation")
-        {
-            Content = JsonContent.Create(new { recipientIds }, options: JsonOptions),
-        };
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/admin/signing-requests/resend-invitation");
+        req.Content = JsonContent.Create(new { recipientIds }, options: JsonOptions);
         ApplyBearer(req, bearerToken);
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode) return null;

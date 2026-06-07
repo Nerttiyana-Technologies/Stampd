@@ -221,9 +221,9 @@ internal static class PadesDocTimeStampWriter
         // ---- 7. Compute the ByteRange digest, call TSA, patch /Contents ----
 
         using var hasher = CreateHasher(hashAlgorithm);
-        hasher.TransformBlock(combined, 0, (int)byteRange1, null, 0);
-        hasher.TransformFinalBlock(combined, (int)byteRange2, (int)byteRange3);
-        var digest = hasher.Hash!;
+        hasher.TransformBlock(combined, 0, byteRange1, null, 0);
+        hasher.TransformFinalBlock(combined, byteRange2, byteRange3);
+        //var digest = hasher.Hash!;
 
         // The TSA contract: pass the bytes to be timestamped; the provider hashes them
         // with hashAlgorithm and wraps the digest in an RFC 3161 TimeStampReq. So we
@@ -243,7 +243,7 @@ internal static class PadesDocTimeStampWriter
                 + $"{ContentsHexLength / 2} bytes. Increase ContentsHexLength.");
         }
 
-        PatchContentsHex(combined, (int)(contentsStartInFile + 1), tstBytes);
+        PatchContentsHex(combined, contentsStartInFile + 1, tstBytes);
 
         return combined;
     }

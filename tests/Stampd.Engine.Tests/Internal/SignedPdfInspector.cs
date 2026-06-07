@@ -53,7 +53,7 @@ public sealed class SignedPdfInspector
     public CmsSignedData SignedData { get; }
 
     public SignerInformation FirstSigner =>
-        SignedData.GetSignerInfos().GetSigners().Cast<SignerInformation>().First();
+        SignedData.GetSignerInfos().GetSigners().First();
 
     /// <summary>
     /// Extracts the messageDigest octet string from signedAttributes (OID 1.2.840.113549.1.9.4).

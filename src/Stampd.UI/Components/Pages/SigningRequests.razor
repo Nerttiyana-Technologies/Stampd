@@ -303,7 +303,7 @@
                         ← Previous
                     </button>
                     <span style="font-size:0.85rem; color: var(--stampd-muted); padding:0 0.5rem;">
-                        Page <strong style="color: var(--stampd-text);">@_page.Page</strong> of <strong style="color: var(--stampd-text);">@_page.TotalPages</strong>
+                        Page <strong style="color: var(--stampd-fg);">@_page.Page</strong> of <strong style="color: var(--stampd-fg);">@_page.TotalPages</strong>
                     </span>
                     <button type="button"
                             class="stampd-btn stampd-btn--ghost"
@@ -387,7 +387,7 @@
     private bool _bulkInFlight;
     private string? _bulkResultMessage;
 
-    private bool IsAdmin => CurrentUser.IsInRole(Stampd.Core.Authorization.StampdRoles.Admin);
+    private bool IsAdmin => CurrentUser.IsInRole(Core.Authorization.StampdRoles.Admin);
 
     private bool AllVisibleSelected =>
         _page is { Items.Count: > 0 } && _page.Items.All(r => _selectedRequestIds.Contains(r.Id));

@@ -366,7 +366,7 @@ internal static class TemplateEndpoints
         [FromServices] StampdDbContext db,
         [FromServices] IDocumentStorageProvider storage,
         [FromServices] IStampdEngine engine,
-        [FromServices] Stampd.WebApi.Services.PadesDefaults padesDefaults,
+        [FromServices] Services.PadesDefaults padesDefaults,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(body);

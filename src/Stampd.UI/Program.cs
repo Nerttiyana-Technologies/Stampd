@@ -57,8 +57,7 @@ if (builder.Environment.IsDevelopment())
     // without restarting with code changes.
     var rolesRaw = builder.Configuration["Stampd:DevAuth:Roles"] ?? "Sender";
     var roles = rolesRaw
-        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-        .ToArray();
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     builder.Services.AddSingleton(new DevTokenOptions
     {

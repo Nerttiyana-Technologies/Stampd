@@ -121,7 +121,7 @@ h1:focus { outline: none; }
     align-items: center;
     gap: 0.6rem;
     font-weight: 600;
-    letter-spacing: 0.2px;
+    letter-spacing: 0.0125em;  /* proportional sub-pixel spacing — Qodana flags float px values as non-integer */
     white-space: nowrap;
 }
 
@@ -204,7 +204,7 @@ h1:focus { outline: none; }
     height: 32px;
     border: 1px solid var(--stampd-border);
     background: var(--stampd-surface);
-    color: var(--stampd-text);
+    color: var(--stampd-fg);
     border-radius: 8px;
     text-decoration: none;
     transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
@@ -226,8 +226,8 @@ h1:focus { outline: none; }
 .stampd-icon-btn--primary:hover,
 .stampd-icon-btn--primary:focus,
 .stampd-icon-btn--primary:visited {
-    background: var(--stampd-accent-hover, #0b3c6e);
-    border-color: var(--stampd-accent-hover, #0b3c6e);
+    background: var(--stampd-accent-deep);
+    border-color: var(--stampd-accent-deep);
     color: #ffffff !important;
 }
 

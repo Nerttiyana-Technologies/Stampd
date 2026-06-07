@@ -193,7 +193,7 @@
                             type="button"
                             disabled="@(!CanSave() || _saving)"
                             @onclick="SaveAsync">
-                        @(_saving ? (IsEditMode ? "Saving…" : "Saving…") : (IsEditMode ? "Save changes" : "Save template"))
+                        @(_saving ? "Saving…"  : (IsEditMode ? "Save changes" : "Save template"))
                     </button>
                     <a class="stampd-btn stampd-btn--ghost" href="/designer">Cancel</a>
                 </div>
@@ -236,7 +236,7 @@
 
     private readonly List<DesignerRole> _roles = new() { new DesignerRole { Name = "Signer", RoutingOrder = 1 } };
     private readonly List<DesignerField> _fields = new();
-    private int _nextIndex = 0;
+    private int _nextIndex;
     private string _activeKind = "Signature";
 
     private ElementReference _canvasHost;
@@ -375,22 +375,17 @@
         try
         {
             var file = e.File;
-            if (file is null)
-            {
-                _pdfError = "No file selected.";
-                return;
-            }
 
             // Cap at 50 MB — the WebApi enforces the same; saves us a wasted upload.
-            const long MaxBytes = 50 * 1024 * 1024;
-            if (file.Size > MaxBytes)
+            const long maxBytes = 50 * 1024 * 1024;
+            if (file.Size > maxBytes)
             {
                 _pdfError = $"File is too large ({file.Size / 1024 / 1024} MB). Limit is 50 MB.";
                 return;
             }
 
             using var ms = new MemoryStream();
-            await using (var src = file.OpenReadStream(MaxBytes))
+            await using (var src = file.OpenReadStream(maxBytes))
             {
                 await src.CopyToAsync(ms);
             }
@@ -594,7 +589,25 @@
 
     public async ValueTask DisposeAsync()
     {
-        if (_canvas is not null) try { await _canvas.DisposeAsync(); } catch { }
+        if (_canvas is not null)
+        {
+            try
+            {
+                await _canvas.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // SignalR circuit already torn down (browser closed, navigated away,
+                // network drop) — JS interop is no longer reachable. Nothing to clean up.
+            }
+            catch (OperationCanceledException)
+            {
+                // Disposal raced with cancellation during teardown — expected, ignore.
+            }
+            // Any other exception bubbles: Blazor's framework logger picks it up so
+            // we don't silently mask real bugs in the IJSObjectReference dispose path.
+        }
+
         _selfRef?.Dispose();
     }
 }

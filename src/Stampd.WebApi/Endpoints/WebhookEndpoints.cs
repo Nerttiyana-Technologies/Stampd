@@ -71,7 +71,7 @@ internal static class WebhookEndpoints
         {
             Url = body.Url,
             Secret = secret,
-            SubscribedEvents = body.SubscribedEvents ?? string.Empty,
+            SubscribedEvents = body.SubscribedEvents,
             IsActive = body.IsActive,
         };
 

@@ -30,7 +30,7 @@ internal static class BulkSendEndpoints
         [FromServices] StampdDbContext db,
         CancellationToken ct)
     {
-        if (body.Rows is null || body.Rows.Count == 0)
+        if (body.Rows.Count == 0)
         {
             return Results.Problem(
                 title: "Rows must contain at least one recipient cohort.",
