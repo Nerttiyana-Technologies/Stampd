@@ -1,0 +1,78 @@
+# Dependabot configuration.
+#
+# Closes the OSSF Scorecard DependencyUpdateToolID finding by enabling auto-PRs
+# for both NuGet packages (every csproj in the solution) and GitHub Actions
+# (which we now pin to SHAs — Dependabot is what keeps those pins current
+# without manual lookups).
+#
+# Schedule: weekly on Monday, grouped by ecosystem to avoid PR-storm noise.
+# Security updates surface as separate PRs immediately, regardless of schedule.
+
+version: 2
+
+updates:
+  # -----------------------------------------------------------------------
+  # NuGet — every csproj across src/, samples/, tests/, tools/.
+  # Directory: "/" tells Dependabot to walk the repo and find every csproj.
+  # -----------------------------------------------------------------------
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 10
+    groups:
+      # Bundle Microsoft / .NET runtime + EF Core bumps so a single PR carries
+      # the whole minor-version uplift instead of N independent PRs.
+      microsoft-platform:
+        patterns:
+          - "Microsoft.*"
+          - "System.*"
+      # Bundle BouncyCastle, BouncyCastle.Cryptography, related crypto deps
+      # — they release together and bumping piecemeal causes API mismatches.
+      crypto:
+        patterns:
+          - "BouncyCastle*"
+          - "Portable.BouncyCastle*"
+      # AWS + Azure SDK families also release in groups.
+      aws-sdk:
+        patterns:
+          - "AWSSDK.*"
+      azure-sdk:
+        patterns:
+          - "Azure.*"
+      # Test infrastructure usually bumps together.
+      test-infrastructure:
+        patterns:
+          - "xunit*"
+          - "Microsoft.NET.Test.Sdk"
+          - "coverlet.*"
+    labels:
+      - "dependencies"
+      - "nuget"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
+
+  # -----------------------------------------------------------------------
+  # GitHub Actions — keeps the SHA pins (from tools/pin-github-actions.sh)
+  # current. Without this, pinned SHAs would slowly age out and stop
+  # receiving upstream security patches.
+  # -----------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(actions)"
+      include: "scope"
