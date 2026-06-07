@@ -129,17 +129,17 @@ internal static class SigningRequestEndpoints
     private const int MaxPageSize = 200;
 
     private static async Task<IResult> ListAsync(
-        [Microsoft.AspNetCore.Mvc.FromQuery] Guid? templateId,
-        [Microsoft.AspNetCore.Mvc.FromQuery] int? page,
-        [Microsoft.AspNetCore.Mvc.FromQuery] int? pageSize,
+        [FromQuery] Guid? templateId,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
         // v2.0 Slice B — filter params (all optional, all additive).
-        [Microsoft.AspNetCore.Mvc.FromQuery] string? status,
-        [Microsoft.AspNetCore.Mvc.FromQuery] string? senderEmail,
-        [Microsoft.AspNetCore.Mvc.FromQuery] string? recipientEmail,
-        [Microsoft.AspNetCore.Mvc.FromQuery] DateTimeOffset? dispatchedFrom,
-        [Microsoft.AspNetCore.Mvc.FromQuery] DateTimeOffset? dispatchedTo,
-        [Microsoft.AspNetCore.Mvc.FromQuery] string? sortBy,
-        [Microsoft.AspNetCore.Mvc.FromQuery] string? direction,
+        [FromQuery] string? status,
+        [FromQuery] string? senderEmail,
+        [FromQuery] string? recipientEmail,
+        [FromQuery] DateTimeOffset? dispatchedFrom,
+        [FromQuery] DateTimeOffset? dispatchedTo,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? direction,
         [FromServices] StampdDbContext db,
         [FromServices] WorkflowEmailOptions emailOptions,
         HttpContext http,
@@ -170,6 +170,13 @@ internal static class SigningRequestEndpoints
         // are silently dropped — an unknown status doesn't fail the request.
         if (!string.IsNullOrWhiteSpace(status))
         {
+            // Materialize as List<T> not T[]. In C# 14, T[].Contains binds to the
+            // ReadOnlySpan<T>.Contains extension (MemoryExtensions) instead of the
+            // Enumerable.Contains extension, which (a) changes equality semantics
+            // (IEquatable<T> vs IEqualityComparer) and (b) breaks EF Core's
+            // recognition pattern for translating to SQL IN (...). List<T>.Contains
+            // is an unambiguous instance method that both compilers and EF Core
+            // translate identically to IN.
             var statuses = status
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(s => Enum.TryParse<SigningRequestStatus>(s, ignoreCase: true, out var parsed)
@@ -177,10 +184,11 @@ internal static class SigningRequestEndpoints
                     : null)
                 .Where(s => s.HasValue)
                 .Select(s => s!.Value)
-                .ToArray();
+                .ToList();
 
-            if (statuses.Length > 0)
+            if (statuses.Count > 0)
             {
+                // EF Core translates List<T>.Contains(entity.Property) to SQL IN (...).
                 query = query.Where(r => statuses.Contains(r.Status));
             }
         }

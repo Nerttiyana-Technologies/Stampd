@@ -180,7 +180,7 @@ public class StampdDbContext : DbContext
                         // Audit events are append-only; the only legal mutation is the
                         // GDPR redaction flag and the personal fields it nulls out.
                         var redactedEntry = entry.Property(nameof(AuditEvent.IsRedacted));
-                        if (!redactedEntry.IsModified || auditEvent.IsRedacted == false)
+                        if (!redactedEntry.IsModified || !auditEvent.IsRedacted)
                         {
                             throw new InvalidOperationException(
                                 "AuditEvent rows are append-only; the only permitted modification is GDPR redaction.");

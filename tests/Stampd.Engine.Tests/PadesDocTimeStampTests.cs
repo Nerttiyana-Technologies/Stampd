@@ -1,12 +1,7 @@
-using System.Security.Cryptography;
-using System.Text;
-
-using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
 
 using Stampd.Core;
 using Stampd.Core.Entities;
-using Stampd.Core.Sealing;
 using Stampd.Crypto.LocalCertificate;
 using Stampd.Engine.Rendering;
 using Stampd.Engine.Tests.Internal;

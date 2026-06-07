@@ -37,9 +37,9 @@ internal static class PadesIncrementalUpdateWriter
     private static readonly byte[] TrailerKeyword = "trailer"u8.ToArray();
     private static readonly byte[] XrefKeyword = "xref"u8.ToArray();
     private static readonly byte[] DictOpen = "<<"u8.ToArray();
-    private static readonly byte[] DictClose = ">>"u8.ToArray();
-    private static readonly byte[] ObjKeyword = " obj"u8.ToArray();
-    private static readonly byte[] EndobjKeyword = "endobj"u8.ToArray();
+    //private static readonly byte[] DictClose = ">>"u8.ToArray();
+    //private static readonly byte[] ObjKeyword = " obj"u8.ToArray();
+    //private static readonly byte[] EndobjKeyword = "endobj"u8.ToArray();
 
     /// <summary>
     /// Appends an incremental-update revision to <paramref name="signedPdf"/> that

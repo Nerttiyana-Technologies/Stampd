@@ -82,7 +82,8 @@ internal static class Program
         var transitType = $"rsa-{bits.ToString(CultureInfo.InvariantCulture)}";
         Console.WriteLine($"       loaded RSA-{bits} private key");
 
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        using var http = new HttpClient();
+        http.Timeout = TimeSpan.FromSeconds(15);
         http.DefaultRequestHeaders.Add("X-Vault-Token", vaultToken);
 
         Console.WriteLine($"[2/7] Fetching wrapping key from {vaultAddr}/v1/{transitMount}/wrapping_key");

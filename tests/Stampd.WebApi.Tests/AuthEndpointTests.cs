@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 
 using Xunit;
@@ -32,7 +31,7 @@ public sealed class AuthEndpointTests : IClassFixture<StampdWebApplicationFactor
         Assert.False(string.IsNullOrWhiteSpace(token));
 
         // JWT shape: three base64url-encoded segments separated by dots.
-        var parts = token!.Split('.');
+        var parts = token.Split('.');
         Assert.Equal(3, parts.Length);
     }
 

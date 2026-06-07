@@ -14,7 +14,7 @@
             <nav class="stampd-topbar-nav">
                 <a href="/designer">Designer</a>
                 <a href="/designer/requests">Requests</a>
-                @if (CurrentUser.IsInRole(Stampd.Core.Authorization.StampdRoles.Admin))
+                @if (CurrentUser.IsInRole(Core.Authorization.StampdRoles.Admin))
                 {
                     <a href="/admin" title="Admin dashboard">Admin</a>
                 }

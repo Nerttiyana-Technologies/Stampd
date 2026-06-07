@@ -3,14 +3,10 @@ using System.Security.Cryptography.X509Certificates;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
-using Org.BouncyCastle.Asn1.Ocsp;
 using Org.BouncyCastle.Asn1.Oiw;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Ocsp;
 using Org.BouncyCastle.Security;
-using Org.BouncyCastle.X509;
-
 using Stampd.Core.Revocation;
 
 namespace Stampd.Revocation.Http;

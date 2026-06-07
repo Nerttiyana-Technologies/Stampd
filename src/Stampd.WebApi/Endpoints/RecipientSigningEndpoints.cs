@@ -281,7 +281,7 @@ internal static class RecipientSigningEndpoints
             Email: recipient.Email,
             DisplayName: recipient.Name);
 
-        Stampd.Core.Identity.IdentityVerificationChallenge challenge;
+        IdentityVerificationChallenge challenge;
         try
         {
             challenge = await verificationProvider.InitiateAsync(subject, ct).ConfigureAwait(false);

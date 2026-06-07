@@ -8,7 +8,6 @@ using VaultSharp.V1.AuthMethods;
 using VaultSharp.V1.AuthMethods.AppRole;
 using VaultSharp.V1.AuthMethods.Kubernetes;
 using VaultSharp.V1.AuthMethods.Token;
-using VaultSharp.V1.SecretsEngines;
 using VaultSharp.V1.SecretsEngines.Transit;
 
 namespace Stampd.Crypto.Vault;

@@ -1,5 +1,5 @@
 using System.Globalization;
-
+using Microsoft.Extensions.Primitives;
 using Stampd.Core.Tenancy;
 
 namespace Stampd.WebApi.Tenancy;
@@ -16,7 +16,7 @@ namespace Stampd.WebApi.Tenancy;
 /// </remarks>
 public sealed class HttpTenantContext : ITenantContext
 {
-    public const string HeaderName = "X-Stampd-Tenant";
+    private const string HeaderName = "X-Stampd-Tenant";
 
     public HttpTenantContext(IHttpContextAccessor accessor, Guid defaultTenantId)
     {
@@ -42,7 +42,7 @@ public sealed class HttpTenantContext : ITenantContext
             return fallback;
         }
 
-        if (!context.Request.Headers.TryGetValue(HeaderName, out var values) || values.Count == 0)
+        if (!context.Request.Headers.TryGetValue(HeaderName, out StringValues values) || values.Count == 0)
         {
             return fallback;
         }

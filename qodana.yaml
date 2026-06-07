@@ -1,0 +1,104 @@
+#-------------------------------------------------------------------------------#
+#               Qodana analysis configuration file                              #
+#                                                                               #
+# Stampd targets net10.0. The stock jetbrains/qodana-dotnet image lags          #
+# behind the .NET 10 SDK release, so the "load-solution" sanity step fails      #
+# with "MSBuild required" on every project and Qodana silently reports          #
+# 0 problems. The bootstrap below installs the matching SDK + runs              #
+# `dotnet restore` so the inspectors can see a real symbol table.               #
+#-------------------------------------------------------------------------------#
+version: "1.0"
+linter: jetbrains/qodana-dotnet:latest
+
+# Profile picks the inspection set. With an Ultimate license (QODANA_TOKEN set),
+# `qodana.recommended` runs the quality pass AND Qodana's SCA / vulnerability /
+# taint / secret-scan pipeline as a separate phase that lands in the Cloud
+# report's "Vulnerabilities" + "Licenses" tabs. The SARIF `results` array only
+# carries the code-quality findings; security findings appear in
+# `runs[0].properties` and the Cloud UI.
+#
+# If QODANA_TOKEN is NOT set, the Ultimate phases silently no-op and only the
+# code-quality inspections run — exactly the symptom we saw in the last run.
+profile:
+  name: qodana.recommended
+
+# Tell the linter where to start. We point at the classic Stampd.sln (NOT the
+# .slnx) because Qodana .NET's SCA scanner doesn't yet understand the .slnx
+# XML solution format introduced in .NET 10. The bootstrap step generates
+# Stampd.sln from Stampd.slnx on every run so this stays in sync.
+dotnet:
+  solution: Stampd.sln
+
+# Runs inside the container before inspection starts. Installs .NET 10 SDK
+# (pinned to the same channel as global.json), puts it ahead of any older SDK
+# on PATH, primes the NuGet cache, and crucially generates a packages.lock.json
+# next to every csproj — Qodana Ultimate's SCA / License Audit pipeline reads
+# the lock file (not obj/project.assets.json) to know what to scan against CVE
+# + license databases. Without --use-lock-file the License Audit tile reports
+# "No dependency data" and the vulnerability scan silently no-ops.
+bootstrap: |
+  curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+  chmod +x /tmp/dotnet-install.sh
+  /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet
+  export PATH="/usr/share/dotnet:$PATH"
+  dotnet --info
+
+  # Qodana .NET's SCA can't read the new .slnx format yet, so generate a
+  # classic Stampd.sln from the project graph. .NET 10's `dotnet new sln`
+  # template defaults to creating .slnx (the new format) and has no opt-out
+  # flag, so we write the classic .sln directly. The script is deterministic
+  # — re-runs produce identical .sln output for clean git diffs.
+  bash tools/generate-classic-sln.sh
+
+  # --use-lock-file: write packages.lock.json next to every csproj so the
+  #   Ultimate SCA pipeline has a deterministic dependency manifest to scan
+  #   against CVE + license databases.
+  # --force-evaluate: refresh transitive deps so the lock files reflect current state.
+  dotnet restore Stampd.sln --use-lock-file --force-evaluate
+
+# Skip inspections that are pure noise on this codebase. Each entry was in the
+# original 280-finding SARIF and is either a documented false positive
+# (anonymous record DTOs read via JSON serialization) or a cosmetic rule we
+# don't want CI to gate on.
+exclude:
+  - name: NotAccessedPositionalProperty.Global
+    paths:
+      - src/Stampd.UI/Models
+      - src/Stampd.WebApi/Models
+      - src/Stampd.WebApi/Endpoints
+      - src/Stampd.Identity.Kba
+  - name: RedundantUsingDirective
+  - name: RedundantNameQualifier
+  - name: Html.PathError                            # blazor.web.js is runtime-generated; not on disk at scan time
+  - name: UsingStatementResourceInitialization
+  - name: EntityFramework.UnsupportedServerSideFunctionCall
+    paths:
+      - src/Stampd.WebApi/Endpoints/SigningRequestEndpoints.cs   # localCollection.Contains(entity) — translates to SQL IN(), already suppressed inline
+
+# Surface these even if they wouldn't trip the default severity gate.
+include:
+  - name: EmptyGeneralCatchClause
+  - name: ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+  - name: NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract
+  - name: ConditionalTernaryEqualBranch
+  - name: CSharpWarnings__CS0618                    # obsolete API usage (e.g., Router.NotFound)
+
+# ----------------------------------------------------------------------------
+# Ultimate security pipeline.
+#
+# When QODANA_TOKEN is the LICENSE activation token (NOT the project upload
+# token), Qodana automatically runs:
+#   - Vulnerable dependency scan (CVE / GHSA against every PackageReference)
+#   - License audit (flags GPL/AGPL deps incompatible with Apache 2.0)
+#   - Taint analysis (SQL injection, XSS, path traversal, SSRF)
+#   - Hardcoded secret detection
+#   - Crypto-misuse rules (weak RNG, ECB mode, missing IV, hardcoded keys)
+# Results land in the Cloud report under separate "Vulnerabilities" and
+# "Licenses" tabs, plus inline in the SARIF results.
+#
+# We do NOT list individual security rule IDs here — Qodana .NET's security
+# rule namespace isn't user-addressable in qodana.yaml. Activation is purely
+# license-driven. If the Cloud report has no Vulnerabilities tab after a run,
+# QODANA_TOKEN is the project token, not the license token. Check:
+#   Cloud → avatar (top right) → Licenses → "Activation Token"
+# ----------------------------------------------------------------------------

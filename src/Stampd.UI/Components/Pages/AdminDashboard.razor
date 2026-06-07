@@ -3,7 +3,7 @@
 @inject DesignerApiClient Api
 @inject CurrentUserService CurrentUser
 @inject IHostEnvironment HostEnv
-@inject NavigationManager Navigation
+@* @inject NavigationManager Navigation *@
 
 <PageTitle>Admin dashboard — Stampd</PageTitle>
 
@@ -15,7 +15,7 @@
         </p>
     </section>
 
-    @if (!CurrentUser.IsInRole(Stampd.Core.Authorization.StampdRoles.Admin))
+    @if (!CurrentUser.IsInRole(Core.Authorization.StampdRoles.Admin))
     {
         <section class="stampd-card">
             <div class="signer-error">
@@ -98,7 +98,7 @@
                     <div style="display:flex; gap:1rem; margin-top:0.5rem; font-size:0.78rem; color: var(--stampd-muted);">
                         <span><span style="display:inline-block; width:18px; height:2px; background:#0b3c6e; vertical-align:middle; margin-right:6px;"></span>Dispatched</span>
                         <span><span style="display:inline-block; width:18px; height:2px; background:#2b7fce; vertical-align:middle; margin-right:6px;"></span>Completed</span>
-                        <span style="margin-left:auto;">Peak: <strong style="color: var(--stampd-text);">@maxVal</strong> / day</span>
+                        <span style="margin-left:auto;">Peak: <strong style="color: var(--stampd-fg);">@maxVal</strong> / day</span>
                     </div>
                 </div>
             }
@@ -189,9 +189,9 @@
                         </div>
                     </div>
                     <div style="display:flex; gap:1rem; margin-top:0.6rem; font-size:0.8rem; color: var(--stampd-muted);">
-                        <span>Drop-off Invited → Viewed: <strong style="color: var(--stampd-text);">@_funnel.DropOff.InvitedToViewedPercent.ToString("0.#")%</strong></span>
-                        <span>Drop-off Viewed → Signed: <strong style="color: var(--stampd-text);">@_funnel.DropOff.ViewedToSignedPercent.ToString("0.#")%</strong></span>
-                        <span style="margin-left:auto;">Conversion: <strong style="color: var(--stampd-text);">@_funnel.ConversionRatePercent.ToString("0.#")%</strong></span>
+                        <span>Drop-off Invited → Viewed: <strong style="color: var(--stampd-fg);">@_funnel.DropOff.InvitedToViewedPercent.ToString("0.#")%</strong></span>
+                        <span>Drop-off Viewed → Signed: <strong style="color: var(--stampd-fg);">@_funnel.DropOff.ViewedToSignedPercent.ToString("0.#")%</strong></span>
+                        <span style="margin-left:auto;">Conversion: <strong style="color: var(--stampd-fg);">@_funnel.ConversionRatePercent.ToString("0.#")%</strong></span>
                     </div>
                 </div>
             }
@@ -333,7 +333,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (!CurrentUser.IsInRole(Stampd.Core.Authorization.StampdRoles.Admin))
+        if (!CurrentUser.IsInRole(Core.Authorization.StampdRoles.Admin))
         {
             _loading = false;
             return;

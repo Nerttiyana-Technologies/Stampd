@@ -3,10 +3,6 @@ using System.Security.Cryptography;
 using System.Text;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-
 using Stampd.Core.Entities;
 using Stampd.Core.Tenancy;
 using Stampd.Infrastructure;
@@ -126,7 +122,8 @@ internal sealed class WebhookDeliveryWorker : BackgroundService
             using var content = new StringContent(delivery.PayloadJson, Encoding.UTF8);
             content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint.Url) { Content = content };
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint.Url);
+            request.Content = content;
             request.Headers.Add("X-Stampd-Event", delivery.EventType.ToString());
             request.Headers.Add("X-Stampd-Delivery-Id", delivery.Id.ToString("N"));
             request.Headers.Add("X-Stampd-Signature", ComputeSignature(endpoint.Secret, delivery.PayloadJson));
@@ -168,7 +165,7 @@ internal sealed class WebhookDeliveryWorker : BackgroundService
         delivery.NextAttemptAtUtc = DateTimeOffset.UtcNow.Add(backoff);
     }
 
-    internal static string ComputeSignature(string secret, string payload)
+    private static string ComputeSignature(string secret, string payload)
     {
         var keyBytes = Encoding.UTF8.GetBytes(secret);
         var payloadBytes = Encoding.UTF8.GetBytes(payload);

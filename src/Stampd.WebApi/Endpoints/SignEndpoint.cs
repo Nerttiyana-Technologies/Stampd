@@ -21,7 +21,7 @@ internal static class SignEndpoint
     private static async Task<IResult> HandleAsync(
         [FromBody] SignRequestBody body,
         [FromServices] IStampdEngine engine,
-        [FromServices] Stampd.WebApi.Services.PadesDefaults padesDefaults,
+        [FromServices] Services.PadesDefaults padesDefaults,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(body);

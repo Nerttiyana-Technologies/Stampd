@@ -563,3 +563,8 @@ mockups/
 # (and its SQLite db + WAL) across machines and CI runs.
 hermex/
 
+qodana-latest.sarif.json
+Stampd.sln
+# Rider AI / repograph cache — large local-only artifacts, never commit
+.repograph/
+.idea/repograph/
