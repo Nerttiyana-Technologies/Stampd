@@ -67,9 +67,9 @@
       },
       "OpenTelemetry.Instrumentation.EntityFrameworkCore": {
         "type": "Direct",
-        "requested": "[1.13.0-beta.1, )",
-        "resolved": "1.13.0-beta.1",
-        "contentHash": "RXC28hwYXDKZRIRtojhHXJmpbS7+6d0Xi27iiNEt/P1KXaW2ZUVPy6NVSqeizmP2ubf2IB8U5UKlUrIwZipZAw==",
+        "requested": "[1.13.0-beta.2, )",
+        "resolved": "1.13.0-beta.2",
+        "contentHash": "qrCv0Kiwm4bqWeTspiEW2uqJ4hBYiD3pxuiLmzj3PIzphEKTO5g6puWVMcDvGpqcWD7TRErwRYY4q0jIYOGdfw==",
         "dependencies": {
           "OpenTelemetry.Api.ProviderBuilderExtensions": "[1.13.1, 2.0.0)"
         }
