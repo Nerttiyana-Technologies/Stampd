@@ -15,16 +15,20 @@ jobs:
   qodana:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
-      checks: write
+      # contents: read is sufficient because push-fixes is 'none' below.
+      # If push-fixes is ever flipped to 'pull-request' or 'branch', escalate
+      # to contents: write at that point. Least-privilege default per OSSF
+      # Scorecard TokenPermissions guidance.
+      contents: read
+      pull-requests: write   # for post-pr-comment: true
+      checks: write          # for use-annotations: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       - name: 'Qodana Scan'
-        uses: JetBrains/qodana-action@v2026.1
+        uses: JetBrains/qodana-action@d7b5ec2fbec32197ef447c450e00589ed5f34fd5 # v2026.1
         env:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
         with:
