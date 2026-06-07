@@ -67,7 +67,7 @@
       anyone consuming a Stampd package can step into source-tagged at the released SHA
       without needing the .snupkg or a local clone.
     -->
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.300" PrivateAssets="All" />
   </ItemGroup>
 
   <PropertyGroup Label="Deterministic builds">
