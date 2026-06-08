@@ -140,6 +140,11 @@
           "SkiaSharp.NativeAssets.macOS": "3.119.4"
         }
       },
+      "SkiaSharp.NativeAssets.Linux": {
+        "type": "Transitive",
+        "resolved": "3.119.4",
+        "contentHash": "UAyVzbqNfZsZbKbzj68zXLyUyF/SbTKmzTfOO6qDu++dtIUMMTzPBe8oOuzU/DiewpfKoUUlOSsJmqWc6blxBw=="
+      },
       "SkiaSharp.NativeAssets.macOS": {
         "type": "Transitive",
         "resolved": "3.119.4",
@@ -163,7 +168,7 @@
         "dependencies": {
           "BouncyCastle.Cryptography": "[2.6.2, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.8, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.engine": {
@@ -172,7 +177,8 @@
           "BouncyCastle.Cryptography": "[2.6.2, )",
           "PDFsharp": "[6.2.*, )",
           "SkiaSharp": "[3.119.4, )",
-          "Stampd.Core": "[2.0.0, )"
+          "SkiaSharp.NativeAssets.Linux": "[3.119.4, )",
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.timestamp.freetsa": {
@@ -180,8 +186,8 @@
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.8, )",
           "Microsoft.Extensions.Http": "[10.0.8, )",
-          "Stampd.Core": "[2.0.0, )",
-          "Stampd.Timestamp.Rfc3161": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )",
+          "Stampd.Timestamp.Rfc3161": "[2.1.0, )"
         }
       },
       "stampd.timestamp.rfc3161": {
@@ -192,7 +198,7 @@
           "Microsoft.Extensions.Http": "[10.0.8, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.8, )",
           "Microsoft.Extensions.Options": "[10.0.8, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       }
     }

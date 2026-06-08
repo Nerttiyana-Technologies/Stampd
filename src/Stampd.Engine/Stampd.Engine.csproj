@@ -44,6 +44,15 @@
       with the PRD; can be removed if unused.
     -->
     <PackageReference Include="SkiaSharp" Version="3.119.4" />
+    <!--
+      SkiaSharp 3.x bundles macOS + Windows native binaries but NOT Linux. Without
+      this package, CI on ubuntu-latest fails at SKBitmap construction with
+      'libSkiaSharp.so cannot open shared object file'. Transitively flows to the
+      test project and any downstream adopter on Linux — Stampd.Engine is the
+      single source of truth for the engine's Skia dependency, so it owns the
+      native runtime as well.
+    -->
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
     <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.300" />
   </ItemGroup>
 

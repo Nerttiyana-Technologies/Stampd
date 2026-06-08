@@ -608,6 +608,11 @@
           "SkiaSharp.NativeAssets.macOS": "3.119.4"
         }
       },
+      "SkiaSharp.NativeAssets.Linux": {
+        "type": "Transitive",
+        "resolved": "3.119.4",
+        "contentHash": "UAyVzbqNfZsZbKbzj68zXLyUyF/SbTKmzTfOO6qDu++dtIUMMTzPBe8oOuzU/DiewpfKoUUlOSsJmqWc6blxBw=="
+      },
       "SkiaSharp.NativeAssets.macOS": {
         "type": "Transitive",
         "resolved": "3.119.4",
@@ -774,7 +779,7 @@
         "type": "Project",
         "dependencies": {
           "AWSSDK.KeyManagementService": "[4.0.12.2, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.crypto.azurekeyvault": {
@@ -783,20 +788,20 @@
           "Azure.Identity": "[1.21.0, )",
           "Azure.Security.KeyVault.Certificates": "[4.9.0, )",
           "Azure.Security.KeyVault.Keys": "[4.10.0, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.crypto.localcertificate": {
         "type": "Project",
         "dependencies": {
           "BouncyCastle.Cryptography": "[2.6.2, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.crypto.vault": {
         "type": "Project",
         "dependencies": {
-          "Stampd.Core": "[2.0.0, )",
+          "Stampd.Core": "[2.1.0, )",
           "VaultSharp": "[1.17.5.1, )"
         }
       },
@@ -804,7 +809,7 @@
         "type": "Project",
         "dependencies": {
           "MailKit": "[4.17.0, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.engine": {
@@ -813,13 +818,14 @@
           "BouncyCastle.Cryptography": "[2.6.2, )",
           "PDFsharp": "[6.2.*, )",
           "SkiaSharp": "[3.119.4, )",
-          "Stampd.Core": "[2.0.0, )"
+          "SkiaSharp.NativeAssets.Linux": "[3.119.4, )",
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.identity.emailotp": {
         "type": "Project",
         "dependencies": {
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.infrastructure": {
@@ -827,21 +833,21 @@
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "[10.0.8, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.8, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.infrastructure.sqlite": {
         "type": "Project",
         "dependencies": {
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.8, )",
-          "Stampd.Infrastructure": "[2.0.0, )"
+          "Stampd.Infrastructure": "[2.1.0, )"
         }
       },
       "stampd.revocation.http": {
         "type": "Project",
         "dependencies": {
           "BouncyCastle.Cryptography": "[2.6.2, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.storage.azureblob": {
@@ -849,41 +855,41 @@
         "dependencies": {
           "Azure.Identity": "[1.21.0, )",
           "Azure.Storage.Blobs": "[12.29.0, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.storage.filesystem": {
         "type": "Project",
         "dependencies": {
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.storage.gcs": {
         "type": "Project",
         "dependencies": {
           "Google.Cloud.Storage.V1": "[4.14.0, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.storage.s3": {
         "type": "Project",
         "dependencies": {
           "AWSSDK.S3": "[4.0.24.1, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.timestamp.freetsa": {
         "type": "Project",
         "dependencies": {
-          "Stampd.Core": "[2.0.0, )",
-          "Stampd.Timestamp.Rfc3161": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )",
+          "Stampd.Timestamp.Rfc3161": "[2.1.0, )"
         }
       },
       "stampd.timestamp.rfc3161": {
         "type": "Project",
         "dependencies": {
           "BouncyCastle.Cryptography": "[2.6.2, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.webapi": {
@@ -905,23 +911,23 @@
           "Serilog.Formatting.Compact": "[3.0.0, )",
           "Serilog.Sinks.Console": "[6.1.1, )",
           "Serilog.Sinks.File": "[7.0.0, )",
-          "Stampd.Core": "[2.0.0, )",
-          "Stampd.Crypto.AwsKms": "[2.0.0, )",
-          "Stampd.Crypto.AzureKeyVault": "[2.0.0, )",
-          "Stampd.Crypto.LocalCertificate": "[2.0.0, )",
-          "Stampd.Crypto.Vault": "[2.0.0, )",
-          "Stampd.Email.Smtp": "[2.0.0, )",
-          "Stampd.Engine": "[2.0.0, )",
-          "Stampd.Identity.EmailOtp": "[2.0.0, )",
-          "Stampd.Infrastructure": "[2.0.0, )",
-          "Stampd.Infrastructure.Sqlite": "[2.0.0, )",
-          "Stampd.Revocation.Http": "[2.0.0, )",
-          "Stampd.Storage.AzureBlob": "[2.0.0, )",
-          "Stampd.Storage.FileSystem": "[2.0.0, )",
-          "Stampd.Storage.Gcs": "[2.0.0, )",
-          "Stampd.Storage.S3": "[2.0.0, )",
-          "Stampd.Timestamp.FreeTsa": "[2.0.0, )",
-          "Stampd.Timestamp.Rfc3161": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )",
+          "Stampd.Crypto.AwsKms": "[2.1.0, )",
+          "Stampd.Crypto.AzureKeyVault": "[2.1.0, )",
+          "Stampd.Crypto.LocalCertificate": "[2.1.0, )",
+          "Stampd.Crypto.Vault": "[2.1.0, )",
+          "Stampd.Email.Smtp": "[2.1.0, )",
+          "Stampd.Engine": "[2.1.0, )",
+          "Stampd.Identity.EmailOtp": "[2.1.0, )",
+          "Stampd.Infrastructure": "[2.1.0, )",
+          "Stampd.Infrastructure.Sqlite": "[2.1.0, )",
+          "Stampd.Revocation.Http": "[2.1.0, )",
+          "Stampd.Storage.AzureBlob": "[2.1.0, )",
+          "Stampd.Storage.FileSystem": "[2.1.0, )",
+          "Stampd.Storage.Gcs": "[2.1.0, )",
+          "Stampd.Storage.S3": "[2.1.0, )",
+          "Stampd.Timestamp.FreeTsa": "[2.1.0, )",
+          "Stampd.Timestamp.Rfc3161": "[2.1.0, )"
         }
       }
     }

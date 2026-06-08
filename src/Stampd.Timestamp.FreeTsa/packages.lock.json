@@ -164,7 +164,7 @@
           "Microsoft.Extensions.Http": "[10.0.8, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.8, )",
           "Microsoft.Extensions.Options": "[10.0.8, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       }
     }
