@@ -50,6 +50,14 @@ internal static class AdminAnalyticsEndpoints
             .WithName("GetAdminAnalyticsIdentityVerification")
             .WithSummary("Identity-verification challenge / verify / failure counts. v2.0 Slice C #209, v2.2 adds prior-window comparison.");
 
+        group.MapGet("/webhooks-health", GetWebhooksHealthAsync)
+            .WithName("GetAdminAnalyticsWebhooksHealth")
+            .WithSummary("Webhook endpoint health + recent delivery failures. v2.3 #230.");
+
+        group.MapGet("/by-sender", GetBySenderAsync)
+            .WithName("GetAdminAnalyticsBySender")
+            .WithSummary("Per-sender productivity: dispatched / completed / avg time-to-sign. v2.3 #231.");
+
         return builder;
     }
 
@@ -102,6 +110,13 @@ internal static class AdminAnalyticsEndpoints
         // by side.
         var currentWeighted = await ComputeWeightedRequestFunnelAsync(db, currentFromMs, long.MaxValue, ct).ConfigureAwait(false);
         var priorWeighted = await ComputeWeightedRequestFunnelAsync(db, priorFromMs, priorToMsExclusive, ct).ConfigureAwait(false);
+
+        // v2.3 #229 — weekday vs weekend split. Tells us whether weekend dispatches
+        // convert at the same rate as weekday ones (often they don't — recipients
+        // who get an email Saturday morning behave differently than a Monday-morning
+        // arrival). Single materialization with day-of-week computed client-side,
+        // since DateTimeOffset.DayOfWeek doesn't translate uniformly across providers.
+        var byDayBucket = await ComputeFunnelByDayBucketAsync(db, currentFromMs, long.MaxValue, ct).ConfigureAwait(false);
 
         return Results.Ok(new
         {
@@ -168,6 +183,29 @@ internal static class AdminAnalyticsEndpoints
                     weightedCompletionPercentPoints = Math.Round(
                         (currentWeighted.WeightedCompletionFraction - priorWeighted.WeightedCompletionFraction) * 100.0,
                         1),
+                },
+            },
+            // v2.3 #229 — weekday vs weekend split. invited/signed broken down by the
+            // SigningRequest's CreatedAtUtc day-of-week bucket. UI renders two small
+            // funnel mini-charts side by side. Conversion-rate gap between buckets
+            // is the actionable metric.
+            byDayBucket = new
+            {
+                weekday = new
+                {
+                    invited = byDayBucket.Weekday.Invited,
+                    signed = byDayBucket.Weekday.Signed,
+                    conversionRatePercent = byDayBucket.Weekday.Invited == 0
+                        ? 0.0
+                        : Math.Round(byDayBucket.Weekday.Signed * 100.0 / byDayBucket.Weekday.Invited, 1),
+                },
+                weekend = new
+                {
+                    invited = byDayBucket.Weekend.Invited,
+                    signed = byDayBucket.Weekend.Signed,
+                    conversionRatePercent = byDayBucket.Weekend.Invited == 0
+                        ? 0.0
+                        : Math.Round(byDayBucket.Weekend.Signed * 100.0 / byDayBucket.Weekend.Invited, 1),
                 },
             },
         });
@@ -274,6 +312,67 @@ internal static class AdminAnalyticsEndpoints
         public int RequestCount { get; init; }
         public int FullyCompletedRequests { get; init; }
         public double WeightedCompletionFraction { get; init; }
+    }
+
+    /// <summary>
+    /// v2.3 #229 — bucket recipients by the day-of-week of their SigningRequest's
+    /// CreatedAtUtc. Pull just the timestamp + status so the materialization stays
+    /// tight; do the dow classification in .NET because DateTimeOffset.DayOfWeek
+    /// translation isn't reliable across SQLite/SqlServer/Postgres. Weekday =
+    /// Mon-Fri; weekend = Sat-Sun (UTC, not the recipient's local timezone — we
+    /// don't have their TZ at dispatch time).
+    /// </summary>
+    private static async Task<FunnelByDayBucket> ComputeFunnelByDayBucketAsync(
+        StampdDbContext db, long fromMs, long toMsExclusive, CancellationToken ct)
+    {
+        var rows = await db.Recipients
+            .Where(r => r.SigningRequest!.CreatedAtUtcEpochMs >= fromMs
+                && r.SigningRequest.CreatedAtUtcEpochMs < toMsExclusive)
+            .Select(r => new
+            {
+                CreatedAtUtc = r.SigningRequest!.CreatedAtUtc,
+                InvitedAt = r.InvitedAtUtc,
+                Status = r.Status,
+            })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var weekdayInvited = 0;
+        var weekdaySigned = 0;
+        var weekendInvited = 0;
+        var weekendSigned = 0;
+        foreach (var r in rows)
+        {
+            var dow = r.CreatedAtUtc.DayOfWeek;
+            var isWeekend = dow == DayOfWeek.Saturday || dow == DayOfWeek.Sunday;
+            if (r.InvitedAt != null)
+            {
+                if (isWeekend) weekendInvited++; else weekdayInvited++;
+            }
+            if (r.Status == RecipientStatus.Signed)
+            {
+                if (isWeekend) weekendSigned++; else weekdaySigned++;
+            }
+        }
+
+        return new FunnelByDayBucket
+        {
+            Weekday = new DayBucketCounts { Invited = weekdayInvited, Signed = weekdaySigned },
+            Weekend = new DayBucketCounts { Invited = weekendInvited, Signed = weekendSigned },
+        };
+    }
+
+    /// <summary>Value carrier for the day-bucket split.</summary>
+    private sealed class FunnelByDayBucket
+    {
+        public DayBucketCounts Weekday { get; init; } = new();
+        public DayBucketCounts Weekend { get; init; } = new();
+    }
+
+    private sealed class DayBucketCounts
+    {
+        public int Invited { get; init; }
+        public int Signed { get; init; }
     }
 
     /// <summary>
@@ -746,5 +845,187 @@ internal static class AdminAnalyticsEndpoints
         public double VerifyRatePercent { get; init; }
         public int InitiatesCount { get; init; }
         public int LockedOutCount { get; init; }
+    }
+
+    // ---------------------------------------------------------------------
+    // v2.3 #230 — webhook delivery retry observability
+    // ---------------------------------------------------------------------
+
+    /// <summary>Top-N for the recent-failures table. Keeps the response bounded.</summary>
+    private const int WebhooksRecentFailuresTake = 10;
+
+    /// <summary>
+    /// Webhook health rollup. Surfaces total + active + degraded endpoints, the
+    /// retry-queue depth, and the most recent failed deliveries — everything an
+    /// admin needs to spot a broken subscriber without opening server logs. All
+    /// counts are tenant-scoped (the WebhookEndpoint / WebhookDelivery query filters
+    /// in StampdDbContext do the tenant filtering for us).
+    /// </summary>
+    private static async Task<IResult> GetWebhooksHealthAsync(
+        [FromServices] StampdDbContext db,
+        CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var oneDayAgo = now.AddDays(-1);
+
+        // Endpoint-level snapshot. ConsecutiveFailures > 0 is the "this endpoint is
+        // currently flapping" signal — we report it as "degraded" rather than
+        // "failed" because the worker may still recover on the next attempt.
+        var endpoints = await db.WebhookEndpoints
+            .Select(e => new
+            {
+                e.Id,
+                e.Url,
+                e.IsActive,
+                e.ConsecutiveFailures,
+                e.LastDeliveryAttemptAtUtc,
+                e.LastSuccessAtUtc,
+            })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var totalEndpoints = endpoints.Count;
+        var activeEndpoints = endpoints.Count(e => e.IsActive);
+        var degradedEndpoints = endpoints.Count(e => e.IsActive && e.ConsecutiveFailures > 0);
+
+        // Retry-queue depth: deliveries scheduled to run later. AttemptCount > 0
+        // means they've already failed at least once. Useful to distinguish a
+        // healthy queue (lots of new deliveries) from a backed-up retry storm.
+        var pendingDeliveries = await db.WebhookDeliveries
+            .Where(d => d.NextAttemptAtUtc > now)
+            .CountAsync(ct)
+            .ConfigureAwait(false);
+
+        var retryingDeliveries = await db.WebhookDeliveries
+            .Where(d => d.AttemptCount > 0)
+            .CountAsync(ct)
+            .ConfigureAwait(false);
+
+        // Last 24h activity. The outbox worker deletes on success, so a row that
+        // exists with AttemptCount > 0 and a populated LastErrorMessage is what
+        // "currently failed" looks like in this design.
+        var failuresLast24h = await db.WebhookDeliveries
+            .Where(d => d.CreatedAtUtc >= oneDayAgo && d.AttemptCount > 0)
+            .CountAsync(ct)
+            .ConfigureAwait(false);
+
+        // Most recent failed deliveries with endpoint context. Pull a small fixed
+        // top-N so the table renders cleanly on the dashboard.
+        var recentFailures = await db.WebhookDeliveries
+            .Where(d => d.AttemptCount > 0 && d.LastErrorMessage != null)
+            .OrderByDescending(d => d.NextAttemptAtUtcEpochMs)
+            .Take(WebhooksRecentFailuresTake)
+            .Select(d => new
+            {
+                d.Id,
+                endpointUrl = d.WebhookEndpoint!.Url,
+                eventType = d.EventType.ToString(),
+                attemptCount = d.AttemptCount,
+                lastResponseStatus = d.LastResponseStatus,
+                lastErrorMessage = d.LastErrorMessage,
+                nextAttemptAtUtc = d.NextAttemptAtUtc,
+            })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return Results.Ok(new
+        {
+            totalEndpoints,
+            activeEndpoints,
+            degradedEndpoints,
+            pendingDeliveries,
+            retryingDeliveries,
+            failuresLast24h,
+            recentFailures,
+        });
+    }
+
+    // ---------------------------------------------------------------------
+    // v2.3 #231 — per-sender productivity
+    // ---------------------------------------------------------------------
+
+    private const int DefaultBySenderTake = 10;
+    private const int MaxBySenderTake = 50;
+
+    /// <summary>
+    /// Per-sender (i.e. per <c>SigningRequest.CreatedBy</c>) dispatched / completed /
+    /// voided counts plus avg time-to-sign for the sender's workflows in the window.
+    /// Lets admins spot which senders are productive vs. which are sending dead-end
+    /// requests. CreatedBy is a string identifier (typically the JWT <c>sub</c>); we
+    /// surface it as-is and let the UI handle display.
+    /// </summary>
+    private static async Task<IResult> GetBySenderAsync(
+        [FromQuery] int? days,
+        [FromQuery] int? take,
+        [FromServices] StampdDbContext db,
+        CancellationToken ct)
+    {
+        var window = Math.Clamp(days ?? DefaultWindowDays, 1, MaxWindowDays);
+        var n = Math.Clamp(take ?? DefaultBySenderTake, 1, MaxBySenderTake);
+        var (currentFromMs, _, _) = WindowEpochs(window);
+
+        // Group on the indexed CreatedBy + epoch column. EF translates this to a
+        // single SELECT with a GROUP BY — no .NET-side materialization beyond the
+        // grouped projection.
+        var grouped = await db.SigningRequests
+            .Where(r => r.CreatedAtUtcEpochMs >= currentFromMs)
+            .GroupBy(r => r.CreatedBy)
+            .Select(g => new
+            {
+                CreatedBy = g.Key,
+                Dispatched = g.Count(),
+                Completed = g.Count(r => r.Status == SigningRequestStatus.Completed),
+                Voided = g.Count(r => r.Status == SigningRequestStatus.Voided),
+            })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        if (grouped.Count == 0)
+        {
+            return Results.Ok(new { windowDays = window, take = n, items = Array.Empty<object>() });
+        }
+
+        // Compute per-sender avg time-to-sign by pulling the signed-recipient
+        // timestamps in a second query. Same pattern as time-to-sign — duration
+        // arithmetic in .NET because DateTimeOffset translation isn't uniform.
+        var senderIds = grouped.Select(g => g.CreatedBy).ToList();
+        var signedRows = await db.Recipients
+            .Where(r => r.Status == RecipientStatus.Signed
+                && r.InvitedAtUtc != null
+                && r.SignedAtUtc != null
+                && r.SigningRequest!.CreatedAtUtcEpochMs >= currentFromMs
+                && senderIds.Contains(r.SigningRequest.CreatedBy))
+            .Select(r => new
+            {
+                Sender = r.SigningRequest!.CreatedBy,
+                r.InvitedAtUtc,
+                r.SignedAtUtc,
+            })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var avgBySender = signedRows
+            .GroupBy(r => r.Sender)
+            .ToDictionary(
+                g => g.Key,
+                g => Math.Round(g.Average(r => (r.SignedAtUtc!.Value - r.InvitedAtUtc!.Value).TotalMinutes), 1));
+
+        var items = grouped
+            .OrderByDescending(g => g.Dispatched)
+            .Take(n)
+            .Select(g => new
+            {
+                sender = g.CreatedBy,
+                dispatched = g.Dispatched,
+                completed = g.Completed,
+                voided = g.Voided,
+                completionRatePercent = g.Dispatched == 0
+                    ? 0.0
+                    : Math.Round(g.Completed * 100.0 / g.Dispatched, 1),
+                avgTimeToSignMinutes = avgBySender.GetValueOrDefault(g.CreatedBy, 0.0),
+            })
+            .ToList();
+
+        return Results.Ok(new { windowDays = window, take = n, items });
     }
 }
