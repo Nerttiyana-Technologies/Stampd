@@ -27,6 +27,8 @@
   <Folder Name="/samples/">
     <Project Path="samples/Stampd.Engine.Smoke/Stampd.Engine.Smoke.csproj" />
     <Project Path="samples/Stampd.CertCheck/Stampd.CertCheck.csproj" />
+    <Project Path="samples/Stampd.ByoCertDemo/Stampd.ByoCertDemo.csproj" />
+    <Project Path="samples/Stampd.ByoCertDemo.WebApi/Stampd.ByoCertDemo.WebApi.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Stampd.Tools.VaultByokImport/Stampd.Tools.VaultByokImport.csproj" />

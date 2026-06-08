@@ -1,0 +1,25 @@
+@inherits LayoutComponentBase
+
+@* Single-shell layout. Slim topbar + centered content column. Same colour
+   palette as Stampd.UI for consistency, but no shared component dependency. *@
+
+<div class="page">
+    <header class="topbar">
+        <a class="brand" href="/">
+            <span class="brand-mark">S</span>
+            <span class="brand-name">Stampd</span>
+            <span class="brand-sub">Bring Your Own Cert demo</span>
+        </a>
+        <div class="topbar-right">
+            <a class="topbar-link" href="https://github.com/Nerttiyana-Technologies/Stampd" target="_blank" rel="noopener">GitHub →</a>
+        </div>
+    </header>
+
+    <main class="content">
+        @Body
+    </main>
+
+    <footer class="footer">
+        Encrypted-at-rest cert vault — PFX bytes + password protected via ASP.NET Core Data Protection (AES-256-GCM).
+    </footer>
+</div>

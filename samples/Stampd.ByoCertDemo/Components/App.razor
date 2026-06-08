@@ -1,0 +1,19 @@
+@* Root document for the bring-your-own-cert demo. Self-contained — no CDN
+   font, no external CSS frameworks. Single inline stylesheet so the page is
+   easy to read alongside the .razor source during the customer demo. *@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <title>Stampd — Bring Your Own Cert</title>
+    <link rel="stylesheet" href="@Assets["css/site.css"]" />
+    <HeadOutlet />
+</head>
+<body>
+    <Routes />
+    <script src="_framework/blazor.web.js"></script>
+    <script src="js/signature-pad.js"></script>
+</body>
+</html>

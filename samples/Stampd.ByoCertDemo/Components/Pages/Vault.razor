@@ -1,0 +1,194 @@
+@page "/"
+@rendermode InteractiveServer
+@inject CertVaultService VaultService
+@inject PdfSignerService Signer
+@inject NavigationManager Nav
+
+<PageTitle>Stampd · Bring Your Own Cert</PageTitle>
+
+<section class="hero">
+    <h1>Sign a PDF with your own certificate</h1>
+    <p class="hero-sub">
+        Upload your PFX once. Stampd encrypts it at rest, then you can sign any number of
+        PDFs from this browser. Private key never leaves this machine.
+    </p>
+</section>
+
+<section class="vault-section">
+    <div class="section-head">
+        <h2>Your vault</h2>
+        <button class="btn btn--primary" @onclick="() => _showUpload = !_showUpload">
+            @(_showUpload ? "Cancel" : "+ Upload a new certificate")
+        </button>
+    </div>
+
+    @if (_showUpload)
+    {
+        <div class="upload-card">
+            <h3>Add a certificate to the vault</h3>
+            <p class="muted">
+                Drop in a PFX / P12 file and its password. Stampd will validate it,
+                then encrypt and store it on disk under your home directory.
+            </p>
+
+            <div class="form-row">
+                <label>PFX / P12 file</label>
+                <InputFile OnChange="OnFilePicked" accept=".pfx,.p12" />
+                @if (_picked is not null)
+                {
+                    <small class="muted">@_picked.Name · @($"{_picked.Size:N0}") bytes</small>
+                }
+            </div>
+
+            <div class="form-row">
+                <label>PFX password</label>
+                <input type="password" @bind="_password" placeholder="Required if the PFX was encrypted with one" />
+            </div>
+
+            <div class="form-row">
+                <label>Friendly name (optional)</label>
+                <input type="text" @bind="_friendlyName" placeholder="e.g. Acme Corp document signer 2026" />
+            </div>
+
+            @if (_uploadError is not null)
+            {
+                <div class="alert alert--error">@_uploadError</div>
+            }
+
+            <div class="form-actions">
+                <button class="btn btn--primary"
+                        @onclick="OnUploadAsync"
+                        disabled="@(_uploading || _picked is null)">
+                    @(_uploading ? "Validating & encrypting…" : "Save to vault")
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (_certs.Count == 0 && !_showUpload)
+    {
+        <div class="empty-card">
+            <h3>No certificates yet</h3>
+            <p>
+                Click <strong>Upload a new certificate</strong> above to add your first one.
+                If you don't have a PFX handy, generate a demo cert with:
+            </p>
+            <pre>openssl req -x509 -newkey rsa:3072 -keyout signer.key -out signer.cer \
+  -sha256 -days 365 -nodes -subj "/CN=Demo Signer/O=Demo/C=US"
+openssl pkcs12 -export -inkey signer.key -in signer.cer -out signer.pfx \
+  -password pass:demo</pre>
+        </div>
+    }
+    else if (_certs.Count > 0)
+    {
+        <div class="cert-grid">
+            @foreach (var c in _certs)
+            {
+                <article class="cert-card @(c.IsExpired ? "cert-card--expired" : "")">
+                    <header>
+                        <h3 title="@c.Subject">@c.FriendlyName</h3>
+                        @if (c.IsExpired)
+                        {
+                            <span class="badge badge--danger">Expired</span>
+                        }
+                        else if (c.DaysUntilExpiry < 30)
+                        {
+                            <span class="badge badge--warn">Expires in @($"{c.DaysUntilExpiry:F0}") days</span>
+                        }
+                        else if (c.IsSelfSigned)
+                        {
+                            <span class="badge badge--info">Self-signed</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge--ok">CA-issued</span>
+                        }
+                    </header>
+                    <dl>
+                        <dt>Issuer</dt>     <dd title="@c.Issuer">@Truncate(c.Issuer, 60)</dd>
+                        <dt>Key</dt>        <dd>@c.KeyAlgorithm-@c.KeySize</dd>
+                        <dt>Valid until</dt> <dd>@c.NotAfterUtc.ToString("yyyy-MM-dd")</dd>
+                        <dt>Thumbprint</dt>  <dd class="mono">@c.Thumbprint.ToLowerInvariant()</dd>
+                        <dt>Added</dt>       <dd>@c.UploadedAtUtc.ToString("yyyy-MM-dd HH:mm 'UTC'")</dd>
+                    </dl>
+                    <footer>
+                        <a class="btn btn--primary" href="/sign/@c.Id" disabled="@c.IsExpired">Sign a PDF →</a>
+                        <button class="btn btn--ghost" @onclick="() => OnDelete(c.Id)">Delete</button>
+                    </footer>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private List<StoredCertMeta> _certs = new();
+    private bool _showUpload;
+    private bool _uploading;
+    private string? _uploadError;
+    private IBrowserFile? _picked;
+    private string _password = string.Empty;
+    private string _friendlyName = string.Empty;
+
+    protected override void OnInitialized() => Refresh();
+
+    private void Refresh() => _certs = VaultService.List().ToList();
+
+    private void OnFilePicked(InputFileChangeEventArgs e)
+    {
+        _picked = e.File;
+        _uploadError = null;
+    }
+
+    private async Task OnUploadAsync()
+    {
+        if (_picked is null) return;
+        _uploading = true;
+        _uploadError = null;
+
+        try
+        {
+            // Read up to 5 MB — bigger than any realistic PFX. Beyond that
+            // it's not a PFX, it's a paste error.
+            await using var stream = _picked.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var pfxBytes = ms.ToArray();
+
+            // SaveAsync validates by loading once — if the password is wrong
+            // or the file isn't a PFX, the underlying exception bubbles up.
+            await VaultService.SaveAsync(pfxBytes, _password, _friendlyName);
+
+            _picked = null;
+            _password = string.Empty;
+            _friendlyName = string.Empty;
+            _showUpload = false;
+            Refresh();
+        }
+        catch (System.Security.Cryptography.CryptographicException cex) when (cex.Message.Contains("password", StringComparison.OrdinalIgnoreCase))
+        {
+            _uploadError = "Password is incorrect, or the PFX isn't encrypted with this password.";
+        }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            _uploadError = "Couldn't parse that file as a PFX/P12. Was it exported with the private key?";
+        }
+        catch (Exception ex)
+        {
+            _uploadError = $"Upload failed: {ex.Message}";
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private void OnDelete(string id)
+    {
+        VaultService.Delete(id);
+        Refresh();
+    }
+
+    private static string Truncate(string s, int max) =>
+        s.Length <= max ? s : s[..(max - 1)] + "…";
+}

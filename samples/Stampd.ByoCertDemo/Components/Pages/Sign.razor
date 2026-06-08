@@ -1,0 +1,228 @@
+@page "/sign/{Id}"
+@rendermode InteractiveServer
+@inject CertVaultService VaultService
+@inject PdfSignerService Signer
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Stampd · Sign with @(_meta?.FriendlyName ?? "certificate")</PageTitle>
+
+@if (_meta is null)
+{
+    <section class="hero">
+        <h1>Certificate not found</h1>
+        <p>That certificate id isn't in the vault any more. It may have been deleted.</p>
+        <a class="btn btn--primary" href="/">← Back to the vault</a>
+    </section>
+}
+else
+{
+    <nav class="breadcrumb">
+        <a href="/">← Vault</a>
+        <span>/</span>
+        <strong>@_meta.FriendlyName</strong>
+    </nav>
+
+    <section class="cert-detail">
+        <h1>Sign a PDF</h1>
+        <div class="cert-detail-grid">
+            <div>
+                <dt>Subject</dt>      <dd>@_meta.Subject</dd>
+                <dt>Issuer</dt>       <dd>@_meta.Issuer</dd>
+                <dt>Thumbprint</dt>   <dd class="mono">@_meta.Thumbprint.ToLowerInvariant()</dd>
+            </div>
+            <div>
+                <dt>Key</dt>          <dd>@_meta.KeyAlgorithm-@_meta.KeySize</dd>
+                <dt>Valid until</dt>  <dd>@_meta.NotAfterUtc.ToString("yyyy-MM-dd") (@_meta.DaysUntilExpiry.ToString("F0") days)</dd>
+                <dt>Trust</dt>        <dd>@(_meta.IsSelfSigned ? "Self-signed — Adobe shows yellow badge unless manually trusted" : "CA-issued — Adobe shows green if AATL-trusted")</dd>
+            </div>
+        </div>
+    </section>
+
+    <section class="sign-section">
+        <h2>1. Choose a PDF</h2>
+        <div class="form-row">
+            <InputFile OnChange="OnFilePicked" accept="application/pdf,.pdf" />
+            @if (_pickedPdf is not null)
+            {
+                <small class="muted">@_pickedPdf.Name · @($"{_pickedPdf.Size:N0}") bytes</small>
+            }
+        </div>
+
+        <h2>2. Draw your signature</h2>
+        <p class="muted small">
+            This is what appears on the signed page. The cryptographic signature attaches
+            separately — what you draw here is purely the visible mark.
+        </p>
+        <div class="sigpad-wrap">
+            <canvas id="sigpad-canvas"
+                    class="sigpad-canvas"
+                    width="600"
+                    height="160"></canvas>
+            <div class="sigpad-baseline"></div>
+        </div>
+        <div class="form-actions sigpad-actions">
+            <button class="btn btn--ghost btn--small" type="button" @onclick="OnClearPadAsync">Clear</button>
+            <span class="muted small">Sign with your mouse, trackpad, or touchscreen.</span>
+        </div>
+
+        <h2>3. Choose a signing profile</h2>
+        <div class="form-row form-row--inline">
+            <label>
+                <input type="radio" name="profile" checked="@(!_useTsa)" @onchange="@(() => _useTsa = false)" />
+                <strong>PAdES B-B</strong> — basic signature, fastest
+            </label>
+            <label>
+                <input type="radio" name="profile" checked="@_useTsa" @onchange="@(() => _useTsa = true)" />
+                <strong>PAdES B-T</strong> — with RFC 3161 timestamp from FreeTSA (+~1 s)
+            </label>
+        </div>
+
+        <h2>4. Sign</h2>
+        <div class="form-actions">
+            <button class="btn btn--primary btn--lg"
+                    @onclick="OnSignAsync"
+                    disabled="@(_signing || _pickedPdf is null || _meta.IsExpired)">
+                @(_signing ? "Signing…" : "Sign now")
+            </button>
+        </div>
+
+        @if (_signError is not null)
+        {
+            <div class="alert alert--error">@_signError</div>
+        }
+    </section>
+
+    @if (_result is not null)
+    {
+        <section class="result-section">
+            <div class="result-banner">
+                <h2>✓ Signed in @_result.Duration.TotalMilliseconds.ToString("F0") ms</h2>
+                <p class="muted">
+                    @_result.Profile · @_result.SignedPdfSizeBytes.ToString("N0") bytes
+                    (@SizeDelta added)
+                </p>
+            </div>
+
+            <div class="result-actions">
+                <button class="btn btn--primary" @onclick="OnDownloadAsync">
+                    Download signed PDF
+                </button>
+                <button class="btn btn--ghost" @onclick="OnOpenInBrowser">
+                    Open in browser
+                </button>
+                <span class="mono small">SHA-256: @_result.Sha256Hex</span>
+            </div>
+
+            @if (_inlineViewerUrl is not null)
+            {
+                <div class="pdf-viewer">
+                    <iframe src="@_inlineViewerUrl" title="Signed PDF preview"></iframe>
+                </div>
+            }
+        </section>
+    }
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = string.Empty;
+
+    private StoredCertMeta? _meta;
+    private IBrowserFile? _pickedPdf;
+    private byte[]? _pdfBytes;
+    private bool _useTsa = true;
+    private bool _signing;
+    private string? _signError;
+    private SignResult? _result;
+    private string? _inlineViewerUrl;
+
+    // Pre-computed so the markup doesn't try to put a format string with `#`
+    // and `;` characters inside a Razor `@()` block — those tokens confuse
+    // the Razor parser (it reads `#` as a preprocessor directive).
+    private string SizeDelta => _result is null
+        ? string.Empty
+        : (_result.SignedPdfSizeBytes - _result.OriginalPdfSizeBytes).ToString("+#,##0;-#,##0");
+
+    protected override void OnInitialized()
+    {
+        _meta = VaultService.List().FirstOrDefault(c => c.Id == Id);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Initialise the canvas-based signature pad once the DOM is mounted.
+        // Re-init is a no-op (the JS keeps a map and bails on duplicate calls).
+        if (_meta is not null)
+        {
+            await JS.InvokeVoidAsync("stampdSignaturePad.init", "sigpad-canvas");
+        }
+    }
+
+    private async Task OnClearPadAsync()
+    {
+        await JS.InvokeVoidAsync("stampdSignaturePad.clear", "sigpad-canvas");
+    }
+
+    private async Task OnFilePicked(InputFileChangeEventArgs e)
+    {
+        _pickedPdf = e.File;
+        _signError = null;
+        _result = null;
+        _inlineViewerUrl = null;
+
+        await using var stream = e.File.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        _pdfBytes = ms.ToArray();
+    }
+
+    private async Task OnSignAsync()
+    {
+        if (_meta is null || _pdfBytes is null) return;
+
+        _signing = true;
+        _signError = null;
+        _result = null;
+        _inlineViewerUrl = null;
+
+        try
+        {
+            using var cert = VaultService.Load(_meta.Id)
+                ?? throw new InvalidOperationException("Vault returned no certificate for that id.");
+
+            // Pull the drawn signature image off the canvas. If the user didn't
+            // draw anything we still produce a valid PAdES sig — Adobe just
+            // labels it "invisible signature" instead of showing the strokes.
+            var sigBase64 = await JS.InvokeAsync<string?>("stampdSignaturePad.toBase64", "sigpad-canvas");
+            byte[]? sigPng = string.IsNullOrWhiteSpace(sigBase64) ? null : Convert.FromBase64String(sigBase64);
+
+            _result = await Signer.SignAsync(cert, _pdfBytes, _useTsa, sigPng);
+        }
+        catch (Exception ex)
+        {
+            _signError = $"Signing failed: {ex.Message}";
+        }
+        finally
+        {
+            _signing = false;
+        }
+    }
+
+    private async Task OnDownloadAsync()
+    {
+        if (_result is null) return;
+        var dataUrl = ToDataUrl(_result.SignedPdfBytes);
+        var fileName = $"signed-{DateTime.UtcNow:yyyyMMdd-HHmmss}.pdf";
+        await JS.InvokeVoidAsync("eval",
+            $"(() => {{ const a = document.createElement('a'); a.href = '{dataUrl}'; a.download = '{fileName}'; document.body.appendChild(a); a.click(); a.remove(); }})()");
+    }
+
+    private void OnOpenInBrowser()
+    {
+        if (_result is null) return;
+        _inlineViewerUrl = ToDataUrl(_result.SignedPdfBytes);
+    }
+
+    private static string ToDataUrl(byte[] bytes) =>
+        "data:application/pdf;base64," + Convert.ToBase64String(bytes);
+}

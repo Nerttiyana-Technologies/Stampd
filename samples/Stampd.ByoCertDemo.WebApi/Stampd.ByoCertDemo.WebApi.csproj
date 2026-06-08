@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Stampd.ByoCertDemo.WebApi</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <Description>
+      Customer-integration reference. Same Blazor UI as Stampd.ByoCertDemo,
+      but signs PDFs by calling Stampd.WebApi over HTTP — no in-process engine,
+      no direct provider references. This is the architecture a real customer
+      would copy into their own front-end: vault state belongs to their UI,
+      signing belongs to your API. Hand this project's source to the customer
+      after the live demo lands.
+    </Description>
+
+    <!--
+      Same logging-perf suppressions as the standalone variant. We log a few
+      lines per request, not thousands per second; LoggerMessage delegates are
+      the wrong cost/benefit at this scale.
+    -->
+    <NoWarn>$(NoWarn);CA1848;CA1873</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    No ProjectReferences to Stampd.Engine / Stampd.Crypto.* / Stampd.Timestamp.*
+    on purpose. The HTTP client knows nothing about the engine internals —
+    it talks to Stampd.WebApi using its public contract. That's the whole point
+    of this sample.
+  -->
+
+</Project>
