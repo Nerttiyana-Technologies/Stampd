@@ -1,0 +1,263 @@
+@page "/"
+@rendermode InteractiveServer
+@inject StampdWebApiClient ApiClient
+@inject IJSRuntime JS
+
+<PageTitle>Stampd · WebApi Integration Demo</PageTitle>
+
+<section class="hero">
+    <h1>Sign a PDF by calling Stampd.WebApi</h1>
+    <p class="hero-sub">
+        This is the integration shape your team will build. No engine references, no in-process
+        signing — just an <strong>HttpClient</strong> + an <strong>Authorization: Bearer</strong>
+        header. Open <code>Services/StampdWebApiClient.cs</code> alongside this page; that's the
+        whole story.
+    </p>
+</section>
+
+<section class="status-section">
+    <div class="status-card @(_health?.IsHealthy == true ? "status-card--ok" : _health is null ? "status-card--pending" : "status-card--down")">
+        <div class="status-card-head">
+            <h3>Stampd.WebApi connection</h3>
+            <button class="btn btn--ghost btn--small" @onclick="OnCheckHealthAsync" disabled="@_healthChecking">
+                @(_healthChecking ? "Checking…" : "Re-check")
+            </button>
+        </div>
+        <dl class="status-dl">
+            <dt>Endpoint</dt> <dd class="mono">@ApiClient.BaseAddress</dd>
+            <dt>Status</dt>
+            <dd>
+                @if (_health is null)
+                {
+                    <span>Not checked yet</span>
+                }
+                else if (_health.IsHealthy)
+                {
+                    <span class="badge badge--ok">HTTP @_health.StatusCode — healthy</span>
+                }
+                else
+                {
+                    <span class="badge badge--danger">HTTP @_health.StatusCode — unreachable</span>
+                }
+            </dd>
+            @if (_health is not null && !string.IsNullOrWhiteSpace(_health.RawBody))
+            {
+                <dt>Raw /health body</dt>
+                <dd><pre class="json">@_health.RawBody</pre></dd>
+            }
+        </dl>
+        @if (_health is not null && !_health.IsHealthy)
+        {
+            <div class="alert alert--error">
+                <strong>Stampd.WebApi isn't running at @ApiClient.BaseAddress.</strong><br />
+                Open another terminal and start it: <code>dotnet run --project src/Stampd.WebApi</code>
+            </div>
+        }
+    </div>
+</section>
+
+<section class="sign-section">
+    <h2>1. Choose a PDF</h2>
+    <div class="form-row">
+        <InputFile OnChange="OnFilePicked" accept="application/pdf,.pdf" />
+        @if (_pickedPdf is not null)
+        {
+            <small class="muted">@_pickedPdf.Name · @($"{_pickedPdf.Size:N0}") bytes</small>
+        }
+    </div>
+
+    <h2>2. Draw your signature</h2>
+    <p class="muted small">
+        Same canvas-based pad as the standalone variant. The PNG goes up to the WebApi
+        as part of the JSON request body.
+    </p>
+    <div class="sigpad-wrap">
+        <canvas id="sigpad-canvas" class="sigpad-canvas" width="600" height="160"></canvas>
+        <div class="sigpad-baseline"></div>
+    </div>
+    <div class="form-actions sigpad-actions">
+        <button class="btn btn--ghost btn--small" type="button" @onclick="OnClearPadAsync">Clear</button>
+        <span class="muted small">Sign with your mouse, trackpad, or touchscreen.</span>
+    </div>
+
+    <h2>3. Signing profile</h2>
+    <p class="muted small">
+        The signing profile (B-B vs B-T vs B-LT vs B-LTA) is a server-side decision
+        in Stampd.WebApi — it's driven by which timestamp authority + revocation
+        providers your deployment has wired up, not by the API caller. This sample
+        always sends the same request shape; the server picks the strongest profile
+        its configuration supports.
+    </p>
+
+    <h2>4. Sign</h2>
+    <div class="form-actions">
+        <button class="btn btn--primary btn--lg"
+                @onclick="OnSignAsync"
+                disabled="@(_signing || _pdfBytes is null || _health?.IsHealthy != true)">
+            @(_signing ? "POSTing to /api/sign…" : "POST to /api/sign")
+        </button>
+    </div>
+
+    @if (_signError is not null)
+    {
+        <div class="alert alert--error">@_signError</div>
+    }
+</section>
+
+@if (_result is not null)
+{
+    <section class="result-section">
+        <div class="result-banner">
+            <h2>✓ Signed in @_result.Duration.TotalMilliseconds.ToString("F0") ms</h2>
+            <p class="muted">
+                @_result.Profile · @_result.SignedSizeBytes.ToString("N0") bytes
+                (@SizeDelta added)
+            </p>
+        </div>
+
+        <div class="result-actions">
+            <button class="btn btn--primary" @onclick="OnDownloadAsync">Download signed PDF</button>
+            <button class="btn btn--ghost" @onclick="OnOpenInBrowser">Open in browser</button>
+            <span class="mono small">SHA-256: @_result.Sha256Hex</span>
+        </div>
+
+        @if (_inlineViewerUrl is not null)
+        {
+            <div class="pdf-viewer">
+                <iframe src="@_inlineViewerUrl" title="Signed PDF preview"></iframe>
+            </div>
+        }
+
+        <details class="request-preview">
+            <summary>See the request your code would build</summary>
+            <p class="muted small">
+                This is the JSON that was POSTed to <code>@_result.EndpointUrl</code>. Base64
+                fields are truncated for readability.
+            </p>
+            <pre class="json">@_result.RawRequestPreview</pre>
+            <p class="muted small">
+                In your own code you'd build the same shape — see
+                <code>Services/StampdWebApiClient.SignAsync</code> for the full source.
+            </p>
+        </details>
+    </section>
+}
+
+@code {
+    private HealthSnapshot? _health;
+    private bool _healthChecking;
+
+    private IBrowserFile? _pickedPdf;
+    private byte[]? _pdfBytes;
+    private bool _signing;
+    private string? _signError;
+    private SignSuccess? _result;
+    private string? _inlineViewerUrl;
+
+    private string SizeDelta => _result is null
+        ? string.Empty
+        : (_result.SignedSizeBytes - _result.OriginalSizeBytes).ToString("+#,##0;-#,##0");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await OnCheckHealthAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Same canvas pad as the standalone variant — kept in this project's
+        // wwwroot so the sample is self-contained for adopters.
+        await JS.InvokeVoidAsync("stampdSignaturePad.init", "sigpad-canvas");
+    }
+
+    private async Task OnCheckHealthAsync()
+    {
+        _healthChecking = true;
+        try
+        {
+            _health = await ApiClient.GetHealthAsync();
+        }
+        catch (Exception ex)
+        {
+            _health = new HealthSnapshot(IsHealthy: false, StatusCode: 0, RawBody: ex.Message);
+        }
+        finally
+        {
+            _healthChecking = false;
+        }
+    }
+
+    private async Task OnClearPadAsync()
+    {
+        await JS.InvokeVoidAsync("stampdSignaturePad.clear", "sigpad-canvas");
+    }
+
+    private async Task OnFilePicked(InputFileChangeEventArgs e)
+    {
+        _pickedPdf = e.File;
+        _signError = null;
+        _result = null;
+        _inlineViewerUrl = null;
+
+        await using var stream = e.File.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        _pdfBytes = ms.ToArray();
+    }
+
+    private async Task OnSignAsync()
+    {
+        if (_pdfBytes is null) return;
+
+        _signing = true;
+        _signError = null;
+        _result = null;
+        _inlineViewerUrl = null;
+
+        try
+        {
+            var sigBase64 = await JS.InvokeAsync<string?>("stampdSignaturePad.toBase64", "sigpad-canvas");
+            byte[] sigPng = string.IsNullOrWhiteSpace(sigBase64)
+                ? OnePixelPngBytes
+                : Convert.FromBase64String(sigBase64);
+
+            _result = await ApiClient.SignAsync(_pdfBytes, sigPng);
+        }
+        catch (HttpRequestException hex)
+        {
+            _signError = hex.Message;
+        }
+        catch (Exception ex)
+        {
+            _signError = $"Unexpected error: {ex.Message}";
+        }
+        finally
+        {
+            _signing = false;
+        }
+    }
+
+    private async Task OnDownloadAsync()
+    {
+        if (_result is null) return;
+        var dataUrl = ToDataUrl(_result.SignedPdfBytes);
+        var fileName = $"signed-{DateTime.UtcNow:yyyyMMdd-HHmmss}.pdf";
+        await JS.InvokeVoidAsync("eval",
+            $"(() => {{ const a = document.createElement('a'); a.href = '{dataUrl}'; a.download = '{fileName}'; document.body.appendChild(a); a.click(); a.remove(); }})()");
+    }
+
+    private void OnOpenInBrowser()
+    {
+        if (_result is null) return;
+        _inlineViewerUrl = ToDataUrl(_result.SignedPdfBytes);
+    }
+
+    private static string ToDataUrl(byte[] bytes) =>
+        "data:application/pdf;base64," + Convert.ToBase64String(bytes);
+
+    // Same 1×1 transparent PNG placeholder the standalone uses when the user
+    // didn't draw on the pad. Keeps PAdES happy but Adobe will label it
+    // "invisible signature".
+    private static readonly byte[] OnePixelPngBytes = Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgAAIAAAUAAen63NgAAAAASUVORK5CYII=");
+}

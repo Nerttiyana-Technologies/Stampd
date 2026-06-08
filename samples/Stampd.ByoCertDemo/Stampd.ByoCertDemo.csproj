@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Stampd.ByoCertDemo</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <Description>
+      Bring-your-own-cert demo. A self-contained Blazor Server app that lets a
+      customer upload their PFX, validates it, uploads a PDF, signs it through
+      Stampd's engine, and shows the signed result inline — all without touching
+      a terminal. Intended as the "watch this and you'll get it" artifact for
+      customer-facing demos.
+    </Description>
+
+    <!--
+      Suppress logger-perf analyzer warnings at this sample's scope. They fire
+      on plain ILogger.Log* extension methods asking for LoggerMessage
+      source-generated delegates instead. That pattern is right for production
+      hot-path code but disproportionate for a single-process demo tool where
+      we log a few lines per cert upload. Same trade Stampd's core projects make
+      under their TreatWarningsAsErrors=true policy when the cost/benefit
+      doesn't justify the boilerplate.
+        CA1848 — prefer LoggerMessage delegates
+        CA1873 — interpolated log argument might be expensive when logging disabled
+    -->
+    <NoWarn>$(NoWarn);CA1848;CA1873</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Stampd.Core\Stampd.Core.csproj" />
+    <ProjectReference Include="..\..\src\Stampd.Engine\Stampd.Engine.csproj" />
+    <ProjectReference Include="..\..\src\Stampd.Crypto.LocalCertificate\Stampd.Crypto.LocalCertificate.csproj" />
+    <ProjectReference Include="..\..\src\Stampd.Timestamp.FreeTsa\Stampd.Timestamp.FreeTsa.csproj" />
+  </ItemGroup>
+
+</Project>

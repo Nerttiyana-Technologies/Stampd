@@ -1,0 +1,14 @@
+@* Router. Two routes: the vault (list + upload) at "/", and the sign-with-cert
+   detail at "/sign/{id}". Everything else 404s back to the vault. *@
+<Router AppAssembly="@typeof(Program).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <p>Page not found.</p>
+            <a href="/">Back to the cert vault →</a>
+        </LayoutView>
+    </NotFound>
+</Router>

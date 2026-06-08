@@ -152,14 +152,23 @@ try
     var step3 = Stopwatch.StartNew();
     Section("[3/4] Verifying signed output structure");
 
+    // Detect the SubFilter by searching for any of the three known values directly.
+    // PdfSharp writes /SubFilter without a separating space, but the previous "look
+    // for the literal `/SubFilter/...` prefix" check was fragile against PDF
+    // whitespace variations. Searching for the value bytes is robust.
+    var hasSubFilter =
+        ByteSearch(signedBytes, "adbe.pkcs7.detached"u8) ||   // PAdES B-B / B-T  (Adobe-style)
+        ByteSearch(signedBytes, "ETSI.CAdES.detached"u8) ||   // strict ETSI B-LT / B-LTA
+        ByteSearch(signedBytes, "ETSI.RFC3161"u8);            // PAdES Document Timestamp (B-LTA Part 4)
+
     var checks = new List<(string Name, bool Passed, string? Detail)>
     {
         ("PDF magic bytes",      signedBytes.Length > 5 && signedBytes[0] == '%' && signedBytes[1] == 'P' && signedBytes[2] == 'D' && signedBytes[3] == 'F', null),
         ("Trailing %%EOF",       EndsWithEofMarker(signedBytes), null),
         ("Contains /Sig dict",   ByteSearch(signedBytes, "/Type /Sig"u8) || ByteSearch(signedBytes, "/Type/Sig"u8), "no signature dictionary written"),
-        ("Contains /Contents",   ByteSearch(signedBytes, "/Contents <"u8) || ByteSearch(signedBytes, "/Contents<"u8), "no /Contents CMS payload"),
+        ("Contains /Contents",   ByteSearch(signedBytes, "/Contents<"u8) || ByteSearch(signedBytes, "/Contents <"u8) || ByteSearch(signedBytes, "/Contents ("u8), "no /Contents CMS payload"),
         ("Contains /ByteRange",  ByteSearch(signedBytes, "/ByteRange"u8), "no /ByteRange — Adobe will reject"),
-        ("SubFilter present",    ByteSearch(signedBytes, "/SubFilter /ETSI."u8) || ByteSearch(signedBytes, "/SubFilter/ETSI."u8), "missing ETSI SubFilter — not PAdES-compliant"),
+        ("SubFilter present",    hasSubFilter, "missing SubFilter value (adbe.pkcs7.detached, ETSI.CAdES.detached, or ETSI.RFC3161) — not PAdES-compliant"),
     };
     step3.Stop();
 
@@ -245,9 +254,14 @@ static X509Certificate2 LoadCertificate(CliArgs opts)
     if (!File.Exists(opts.PfxPath))
         throw new FileNotFoundException($"PFX file not found: {opts.PfxPath}", opts.PfxPath);
 
-    // X509KeyStorageFlags.Exportable so the private key remains accessible across
-    // platforms. EphemeralKeySet would be ideal but isn't supported on macOS.
-    return new X509Certificate2(
+    // .NET 9+ deprecated the X509Certificate2(string, string) constructor (SYSLIB0057).
+    // X509CertificateLoader is the supported replacement — same flags, explicit intent
+    // (PKCS#12 vs raw cert), and avoids the ambiguity around content-type detection
+    // that motivated the deprecation in the first place.
+    //
+    // Exportable + PersistKeySet so the private key survives the load on macOS/Linux.
+    // EphemeralKeySet would be ideal but isn't supported on macOS.
+    return X509CertificateLoader.LoadPkcs12FromFile(
         opts.PfxPath!,
         opts.Password ?? string.Empty,
         X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
