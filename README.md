@@ -8,7 +8,7 @@
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-1a5698?style=flat-square&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![PAdES B-LT](https://img.shields.io/badge/PAdES-B--LT-2b7fce?style=flat-square)](https://en.wikipedia.org/wiki/PAdES)
 [![Adobe Verified](https://img.shields.io/badge/Adobe%20Acrobat-verified%20signature-1b7a3a?style=flat-square&logo=adobe&logoColor=white)](#)
-[![Status: v2.0](https://img.shields.io/badge/status-v2.0-1a5698?style=flat-square)](#release-history)
+[![Status: v2.1](https://img.shields.io/badge/status-v2.1-1a5698?style=flat-square)](#release-history)
 
 **An executive-grade, open-source e-signature platform built natively for .NET.**
 
@@ -158,43 +158,47 @@ Env-var form: `Stampd__Email__Smtp__Host`, `Stampd__Email__Smtp__Port`, etc.
 
 ## Feature matrix
 
-| Capability | v1.0 | v1.1 | v1.2 | v1.3 | v2.0 (current) |
-|---|---|---|---|---|---|
-| PAdES B-B (basic) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| PAdES B-T (RFC 3161 timestamp) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| PAdES B-LT (CRL + OCSP via DSS) | — | ✅ | ✅ | ✅ | ✅ |
-| PAdES B-LTA (archive timestamp) | — | — | ✅ | ✅ † | ✅ † |
-| Strict ETSI ATSHashIndexV3 imprint | — | — | — | ✅ | ✅ |
-| PAdES Document Timestamp (`/Type /DocTimeStamp`) | — | — | — | ✅ | ✅ |
-| Local certificate sealing | ✅ | ✅ | ✅ | ✅ | ✅ |
-| HashiCorp Vault / OpenBao Transit | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Azure Key Vault | — | ✅ | ✅ | ✅ | ✅ |
-| AWS KMS | — | ✅ | ✅ | ✅ | ✅ |
-| Configurable RFC 3161 TSA (DigiCert / GlobalSign / Sectigo / internal) | — | ✅ | ✅ | ✅ | ✅ |
-| SQL Server / Postgres / SQLite | ✅ | ✅ | ✅ | ✅ | ✅ |
-| S3 / Azure Blob / GCS storage | — | ✅ | ✅ | ✅ | ✅ |
-| Email-driven workflow dispatch | — | ✅ | ✅ | ✅ | ✅ |
-| Persistent OTP store (DB-backed) | — | ✅ | ✅ | ✅ | ✅ |
-| SMS OTP + KBA identity verification | — | ✅ | ✅ | ✅ | ✅ |
-| OTP rate limit + brute-force lockout | — | — | — | ✅ | ✅ |
-| Webhook outbox with HMAC delivery | — | ✅ | ✅ | ✅ | ✅ |
-| Bulk-send worker | — | ✅ | ✅ | ✅ | ✅ |
-| Multi-recipient field aggregation | — | ✅ | ✅ | ✅ | ✅ |
-| Multi-recipient sender detail page | — | — | — | ✅ | ✅ |
-| Sender completion notification email | — | — | — | ✅ | ✅ |
-| Blazor signer experience | — | ✅ | ✅ | ✅ | ✅ |
-| Blazor template designer | — | ✅ | ✅ | ✅ | ✅ |
-| Identity-verification UI gates | — | — | ✅ | ✅ | ✅ |
-| Drag-to-move + resize handles in designer | — | — | ✅ | ✅ | ✅ |
-| True PDF incremental update for strict ETSI B-LT | — | — | ✅ | ✅ | ✅ |
-| Paginated signing-requests list (UI + API) | — | — | — | ✅ | ✅ |
-| RBAC: Admin / Sender / ReadOnly roles + policies | — | — | — | — | ✅ |
-| Admin dashboard at `/admin` (summary + 30-day trend + top templates) | — | — | — | — | ✅ |
-| Drop-off funnel + time-to-sign + identity-verification analytics | — | — | — | — | ✅ |
-| Signing-requests filters (status / sender / recipient / date) + sort | — | — | — | — | ✅ |
-| Admin bulk operations: void, resend invitation, demo cleanup | — | — | — | — | ✅ |
-| Audit attribution (`ActorUserId` + `ActorRole` on every event) | — | — | — | — | ✅ |
-| Theme persistence across navigation (light / dark) | — | — | — | — | ✅ |
+| Capability | v1.0 | v1.1 | v1.2 | v1.3 | v2.0 | v2.1 (current) |
+|---|---|---|---|---|---|---|
+| PAdES B-B (basic) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| PAdES B-T (RFC 3161 timestamp) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| PAdES B-LT (CRL + OCSP via DSS) | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| PAdES B-LTA (archive timestamp) | — | — | ✅ | ✅ † | ✅ † | ✅ † |
+| Strict ETSI ATSHashIndexV3 imprint | — | — | — | ✅ | ✅ | ✅ |
+| PAdES Document Timestamp (`/Type /DocTimeStamp`) | — | — | — | ✅ | ✅ | ✅ |
+| Local certificate sealing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| HashiCorp Vault / OpenBao Transit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Azure Key Vault | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| AWS KMS | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Configurable RFC 3161 TSA (DigiCert / GlobalSign / Sectigo / internal) | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Opt-in DigiCert TSA failover (resilience for FreeTSA outages) | — | — | — | — | — | ✅ |
+| SQL Server / Postgres / SQLite | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S3 / Azure Blob / GCS storage | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Email-driven workflow dispatch | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Persistent OTP store (DB-backed) | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| SMS OTP + KBA identity verification | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| OTP rate limit + brute-force lockout | — | — | — | ✅ | ✅ | ✅ |
+| Webhook outbox with HMAC delivery | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Bulk-send worker | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Multi-recipient field aggregation | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Multi-recipient sender detail page | — | — | — | ✅ | ✅ | ✅ |
+| Sender completion notification email | — | — | — | ✅ | ✅ | ✅ |
+| Blazor signer experience | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Blazor template designer | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Identity-verification UI gates | — | — | ✅ | ✅ | ✅ | ✅ |
+| Drag-to-move + resize handles in designer | — | — | ✅ | ✅ | ✅ | ✅ |
+| Transparent signature rendering (PNG alpha through PdfSharp) | — | — | — | — | — | ✅ |
+| True PDF incremental update for strict ETSI B-LT | — | — | ✅ | ✅ | ✅ | ✅ |
+| Paginated signing-requests list (UI + API) | — | — | — | ✅ | ✅ | ✅ |
+| RBAC: Admin / Sender / ReadOnly roles + policies | — | — | — | — | ✅ | ✅ |
+| Admin dashboard at `/admin` (summary + 30-day trend + top templates) | — | — | — | — | ✅ | ✅ |
+| Drop-off funnel + time-to-sign + identity-verification analytics | — | — | — | — | ✅ | ✅ |
+| Signing-requests filters (status / sender / recipient / date) + sort | — | — | — | — | ✅ | ✅ |
+| Strict completed-date sort (V15 `CompletedAtUtcEpochMs` shadow column) | — | — | — | — | — | ✅ |
+| Shareable + back-button-safe filter URLs (query-string sync) | — | — | — | — | — | ✅ |
+| Admin bulk operations: void, resend invitation, demo cleanup | — | — | — | — | ✅ | ✅ |
+| Audit attribution (`ActorUserId` + `ActorRole` on every event) | — | — | — | — | ✅ | ✅ |
+| Theme persistence across navigation (light / dark) | — | — | — | — | ✅ | ✅ |
 
 † **B-LTA carrier — belt + suspenders.** Stampd emits BOTH long-term archive carriers for B-LTA, so adopters get maximum verifier interop:
 >
@@ -207,13 +211,16 @@ Env-var form: `Stampd__Email__Smtp__Host`, `Stampd__Email__Smtp__Port`, etc.
 
 **v2.0 candidates** — RBAC foundation (Admin / Sender / ReadOnly roles + ASP.NET Core policies + role-gated nav) ✅, admin dashboard at `/admin` with summary tiles + 30-day trend + top-templates table ✅, drop-off funnel + per-template time-to-sign + identity-verification analytics ✅, signing-requests filter panel (status, sender, recipient, date range) + multi-column sort ✅, admin bulk operations (void, resend invitation, demo cleanup) ✅, audit attribution (`ActorUserId` + `ActorRole` on every event) + V14 migrations on SQLite / SqlServer / Postgres ✅, theme persistence across navigation ✅.
 
-**v2.1 candidates** — URL query-string sync for shareable + back-button-safe filters on the signing-requests list (#196), V15 `CompletedAtUtcEpochMs` shadow column on SigningRequest so the "completed" sort no longer proxies through `CreatedAtUtcEpochMs` (#212), per-role time-to-sign segmentation, previous-window comparison on analytics widgets, per-channel breakdown on identity-verification lockout count, funnel weighted by multi-recipient completion fraction.
+**v2.1 candidates** — transparent signature rendering (PdfSharp PNG alpha normalization via SkiaSharp re-encode, #213) ✅, V15 `CompletedAtUtcEpochMs` shadow column on SigningRequest so the "completed" sort no longer proxies through `CreatedAtUtcEpochMs` (#212) ✅, URL query-string sync for shareable + back-button-safe filters on the signing-requests list (#196) ✅, opt-in DigiCert TSA failover wrapper for resilience against FreeTSA outages ✅.
+
+**v2.2 candidates** — per-role time-to-sign segmentation, previous-window comparison on analytics widgets, per-channel breakdown on identity-verification lockout count, funnel weighted by multi-recipient completion fraction.
 
 **v3.0 vision** — workflow rules engine (conditional fields, branching), industry-specific compliance bundles (HIPAA, 21 CFR Part 11, eIDAS QES), tenant-isolated admin scopes, real SSO (OIDC / SAML) replacing the dev JWT minter.
 
 ## Release history
 
-- **v2.0.0** *(current)* — Real RBAC across the API and UI (Admin / Sender / ReadOnly roles, ASP.NET Core authorization policies, role-gated nav, "logged in as" topbar). Admin dashboard at `/admin`: summary tiles for live request states, 30-day trend SVG, top-templates table, analytics section with drop-off funnel + per-template time-to-sign + identity-verification metrics on a shared window selector (7 / 30 / 90 days). Signing-requests list gets a filter panel (status, sender email, recipient email, dispatched-from/to) and explicit sort selector. Admin bulk operations: void selected, resend invitations, demo cleanup tile. Every `AuditEvent` now carries `ActorUserId` + `ActorRole` (V14 migration on SQLite / SqlServer / Postgres + composite `(TenantId, ActorUserId, OccurredAtUtc)` index). UI polish: theme choice now survives Blazor enhanced-navigation via head-inline restore + `enhancedload` re-apply + MutationObserver guard; ghost / primary / icon-button hover text legibility fixed across both themes; signer signature canvas pinned to white so dark-mode ink is visible.
+- **v2.1.0** *(current)* — Transparent signature rendering: signature/initial PNGs with alpha now render with their transparent background preserved (was a black rectangle on v2.0 due to PdfSharp 6.x alpha handling — fixed via a SkiaSharp re-encode pass before `XImage.FromStream`). Strict completed-date sort on `GET /api/signing-requests?sortBy=completed`: V15 migration adds a nullable `CompletedAtUtcEpochMs` shadow column on SigningRequest with a covering `(TenantId, CompletedAtUtcEpochMs)` index on SQLite + SqlServer + Postgres, replacing v2.0's "route through `CreatedAtUtcEpochMs`" workaround. URL query-string sync on `/designer/requests`: filter / sort / page state mirrors into the address bar so links are shareable and the browser back button restores prior views. Opt-in DigiCert TSA failover: new `Stampd:Tsa:EnableDigiCertFailover` config flag (default `false`) wraps the primary TSA in a `FailoverTimestampAuthorityProvider` that falls back to DigiCert's free public TSA on FreeTSA timeouts. The standalone bring-your-own-certificate sample (`samples/Stampd.ByoCertDemo`) ships with the failover always on plus a file-based logger writing to `~/.stampd/byo-cert-demo/logs/demo-*.log` for demo diagnostics.
+- **v2.0.0** — Real RBAC across the API and UI (Admin / Sender / ReadOnly roles, ASP.NET Core authorization policies, role-gated nav, "logged in as" topbar). Admin dashboard at `/admin`: summary tiles for live request states, 30-day trend SVG, top-templates table, analytics section with drop-off funnel + per-template time-to-sign + identity-verification metrics on a shared window selector (7 / 30 / 90 days). Signing-requests list gets a filter panel (status, sender email, recipient email, dispatched-from/to) and explicit sort selector. Admin bulk operations: void selected, resend invitations, demo cleanup tile. Every `AuditEvent` now carries `ActorUserId` + `ActorRole` (V14 migration on SQLite / SqlServer / Postgres + composite `(TenantId, ActorUserId, OccurredAtUtc)` index). UI polish: theme choice now survives Blazor enhanced-navigation via head-inline restore + `enhancedload` re-apply + MutationObserver guard; ghost / primary / icon-button hover text legibility fixed across both themes; signer signature canvas pinned to white so dark-mode ink is visible.
 - **v1.3.0** — Strict-ETSI B-LTA hardening (`id-aa-ats-hash-index-v3` imprint + parallel `/Type /DocTimeStamp` PAdES Part 4 carrier), sender completion notification email + executive-grade invitation HTML upgrade, multi-recipient sender detail page at `/designer/requests/{id}` with audit timeline, OTP rate limit + brute-force lockout, paginated signing-requests list with prev/next + per-page selector, epoch sort columns finished on SigningRequest + SignedDocumentRecord plus four catch-up migrations bringing SqlServer + Postgres providers to V13.
 - **v1.2.0** — Strict ETSI B-LT via PDF incremental update, B-LTA archive timestamp (CMS-attribute form), Email-OTP identity-verification UI gate, Hermex dev mailbox at `/hermex`, edit-existing-template flow, server-side worker sort columns, seamless `/demo` one-click bootstrap, sender-side **Requests** view with sealed-PDF download, executive-grade HTML OTP email template, auto-auth in Development (zero terminal commands, zero copy-paste).
 - **v1.1.0** — Production sealing providers, multi-cloud storage, B-LT signatures, webhooks, bulk-send, full Blazor signer + designer UI. End-to-end verified.
