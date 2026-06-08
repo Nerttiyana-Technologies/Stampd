@@ -252,7 +252,9 @@ public sealed record AdminAnalyticsFunnel(
     [property: JsonPropertyName("previousWindow")] AdminFunnelPreviousWindow? PreviousWindow = null,
     [property: JsonPropertyName("deltas")] AdminFunnelDeltas? Deltas = null,
     // v2.2 #225 — request-weighted view. Null for v2.1 and earlier WebApi instances.
-    [property: JsonPropertyName("requestWeighted")] AdminFunnelRequestWeighted? RequestWeighted = null);
+    [property: JsonPropertyName("requestWeighted")] AdminFunnelRequestWeighted? RequestWeighted = null,
+    // v2.3 #229 — weekday/weekend split. Null for pre-v2.3.
+    [property: JsonPropertyName("byDayBucket")] AdminFunnelByDayBucket? ByDayBucket = null);
 
 public sealed record AdminFunnelStages(
     [property: JsonPropertyName("invited")] int Invited,
@@ -276,6 +278,16 @@ public sealed record AdminFunnelDeltas(
     [property: JsonPropertyName("totalPercent")] double TotalPercent,
     [property: JsonPropertyName("signedPercent")] double SignedPercent,
     [property: JsonPropertyName("conversionRatePercentPoints")] double ConversionRatePercentPoints);
+
+/// <summary>v2.3 #229 — weekday vs weekend split on the funnel.</summary>
+public sealed record AdminFunnelByDayBucket(
+    [property: JsonPropertyName("weekday")] AdminFunnelDayBucket Weekday,
+    [property: JsonPropertyName("weekend")] AdminFunnelDayBucket Weekend);
+
+public sealed record AdminFunnelDayBucket(
+    [property: JsonPropertyName("invited")] int Invited,
+    [property: JsonPropertyName("signed")] int Signed,
+    [property: JsonPropertyName("conversionRatePercent")] double ConversionRatePercent);
 
 /// <summary>v2.2 #225 — request-weighted funnel (a 2-of-3 signed request = 0.67).</summary>
 public sealed record AdminFunnelRequestWeighted(
@@ -367,6 +379,39 @@ public sealed record AdminIdentityVerificationChannelCounts(
     [property: JsonPropertyName("initiatesCount")] int InitiatesCount,
     [property: JsonPropertyName("verifiedCount")] int VerifiedCount,
     [property: JsonPropertyName("lockedOutCount")] int LockedOutCount);
+
+/// <summary>v2.3 #230 — webhook-delivery health rollup.</summary>
+public sealed record AdminWebhooksHealth(
+    [property: JsonPropertyName("totalEndpoints")] int TotalEndpoints,
+    [property: JsonPropertyName("activeEndpoints")] int ActiveEndpoints,
+    [property: JsonPropertyName("degradedEndpoints")] int DegradedEndpoints,
+    [property: JsonPropertyName("pendingDeliveries")] int PendingDeliveries,
+    [property: JsonPropertyName("retryingDeliveries")] int RetryingDeliveries,
+    [property: JsonPropertyName("failuresLast24h")] int FailuresLast24h,
+    [property: JsonPropertyName("recentFailures")] IReadOnlyList<AdminWebhookRecentFailure> RecentFailures);
+
+public sealed record AdminWebhookRecentFailure(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("endpointUrl")] string EndpointUrl,
+    [property: JsonPropertyName("eventType")] string EventType,
+    [property: JsonPropertyName("attemptCount")] int AttemptCount,
+    [property: JsonPropertyName("lastResponseStatus")] int? LastResponseStatus,
+    [property: JsonPropertyName("lastErrorMessage")] string? LastErrorMessage,
+    [property: JsonPropertyName("nextAttemptAtUtc")] DateTimeOffset NextAttemptAtUtc);
+
+/// <summary>v2.3 #231 — per-sender productivity table.</summary>
+public sealed record AdminBySender(
+    [property: JsonPropertyName("windowDays")] int WindowDays,
+    [property: JsonPropertyName("take")] int Take,
+    [property: JsonPropertyName("items")] IReadOnlyList<AdminBySenderRow> Items);
+
+public sealed record AdminBySenderRow(
+    [property: JsonPropertyName("sender")] string Sender,
+    [property: JsonPropertyName("dispatched")] int Dispatched,
+    [property: JsonPropertyName("completed")] int Completed,
+    [property: JsonPropertyName("voided")] int Voided,
+    [property: JsonPropertyName("completionRatePercent")] double CompletionRatePercent,
+    [property: JsonPropertyName("avgTimeToSignMinutes")] double AvgTimeToSignMinutes);
 
 /// <summary>Working state for one designer-placed field. Index is local to the editor.</summary>
 public sealed class DesignerField

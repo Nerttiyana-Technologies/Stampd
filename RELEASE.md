@@ -132,6 +132,40 @@ After yanking, bump `Directory.Build.props` to the next patch (e.g. `2.0.0 → 2
 
 ## Upgrade notes
 
+### Upgrading from v2.2.0 → v2.3.0
+
+v2.3 is a MINOR release. Two new endpoints (`/api/admin/analytics/webhooks-health`, `/api/admin/analytics/by-sender`), one new endpoint file (`AdminAuditExportEndpoints` with `GET /api/admin/audit/export`), and one additive field on the funnel response (`byDayBucket`). Zero schema changes, zero new migrations, zero new config knobs required.
+
+#### 1. New endpoint `GET /api/admin/analytics/webhooks-health`
+
+Returns counter tiles (`totalEndpoints`, `activeEndpoints`, `degradedEndpoints`, `pendingDeliveries`, `retryingDeliveries`, `failuresLast24h`) plus a top-10 `recentFailures` array carrying the failing endpoint URL, event type, attempt count, last HTTP status, last error message, and next-attempt timestamp. Inherits the `Admin` policy from the admin group. No request body, no params.
+
+The `/admin` dashboard renders a new "Webhook health" card between the analytics section and the danger zone. Adopters who don't use webhooks see four zero tiles — harmless.
+
+#### 2. New endpoint `GET /api/admin/analytics/by-sender?days=30&take=10`
+
+Returns `items[]` of `{ sender, dispatched, completed, voided, completionRatePercent, avgTimeToSignMinutes }` ordered by dispatched desc. `sender` is the raw `SigningRequest.CreatedBy` string (your JWT `sub` claim). `days` clamps to 1-365 with default 30; `take` clamps to 1-50 with default 10.
+
+The dashboard renders a "Per-sender productivity" table inside the existing analytics section. Two queries per call, both index-covered.
+
+#### 3. New endpoint `GET /api/admin/audit/export`
+
+Streams the tenant's audit trail as RFC 4180-ish CSV with `Content-Disposition: attachment` so browsers prompt to save. Optional filters: `from`/`to` (`DateTimeOffset` ISO-8601), `eventType` (case-insensitive `AuditEventType` name), `actorUserId` (exact match), `maxRows` (clamped to `Stampd:Admin:MaxAuditExportRows`, default 250,000).
+
+`Stampd:Admin:MaxAuditExportRows` is a new optional config key. Default keeps the export bounded so a single download doesn't take 20 minutes; adopters with adoption-scale data can raise it. Adopters who don't set the key get the 250k default.
+
+The dashboard's new "Audit-trail export" card has two `<a download>` links — "last N days" using the current window selector, and "all (capped at 250k)" for a full export. The browser hits the WebApi directly so the CSV streams to disk without round-tripping through Blazor.
+
+#### 4. Funnel response gains a `byDayBucket` field
+
+`GET /api/admin/analytics/funnel` now returns `byDayBucket: { weekday: {...}, weekend: {...} }` alongside the existing fields. Each bucket carries `invited` / `signed` / `conversionRatePercent` for SigningRequests dispatched on Mon-Fri UTC vs. Sat-Sun UTC. Nullable on the wire — pre-v2.3 UI clients deserialize the response with the field absent and see no behavior change.
+
+UTC bucketing is deliberate — recipient timezone isn't available at dispatch time. Adopters who care about local-time bucketing should compute it from their own dispatch timestamps; the field surfaces the tenant-wide view.
+
+#### 5. No migration step
+
+v2.3 ships zero schema changes. `dotnet add package Stampd.* --version 2.3.0` and the new endpoints + dashboard sections come up immediately. Pre-v2.3 UI clients keep working against a v2.3 WebApi because every response shape change is additive and nullable.
+
 ### Upgrading from v2.1.0 → v2.2.0
 
 v2.2 is a MINOR release — analytics-only, fully additive. No schema changes, no new migrations, no new config flags. Every change is backwards-compatible on the wire: every new field in the analytics responses is nullable, so adopters running an older Stampd.UI against a v2.2 WebApi (or vice versa) see the existing widgets unchanged.

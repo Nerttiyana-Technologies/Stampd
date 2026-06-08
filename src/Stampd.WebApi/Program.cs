@@ -582,6 +582,7 @@ var adminGroup = app.MapGroup("").RequireAuthorization(Stampd.Core.Authorization
 adminGroup.MapAdminDashboard();
 adminGroup.MapAdminOperations();
 adminGroup.MapAdminAnalytics();
+adminGroup.MapAdminAuditExport();
 
 try
 {

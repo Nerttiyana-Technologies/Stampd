@@ -377,4 +377,46 @@ public sealed class DesignerApiClient
         if (!resp.IsSuccessStatusCode) return null;
         return await resp.Content.ReadFromJsonAsync<AdminIdentityVerification>(JsonOptions, ct).ConfigureAwait(false);
     }
+
+    /// <summary>v2.3 #230 — GET /api/admin/analytics/webhooks-health.</summary>
+    public async Task<AdminWebhooksHealth?> GetAdminWebhooksHealthAsync(string bearerToken, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/admin/analytics/webhooks-health");
+        ApplyBearer(req, bearerToken);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<AdminWebhooksHealth>(JsonOptions, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>v2.3 #231 — GET /api/admin/analytics/by-sender.</summary>
+    public async Task<AdminBySender?> GetAdminBySenderAsync(string bearerToken, int days, int take, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/admin/analytics/by-sender?days={days}&take={take}");
+        ApplyBearer(req, bearerToken);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<AdminBySender>(JsonOptions, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// v2.3 #232 — composes the absolute URL for the audit CSV export. The browser
+    /// hits this URL directly through a download anchor so the CSV streams straight
+    /// to disk without round-tripping through Blazor. Filters are encoded as query
+    /// params: <paramref name="days"/> becomes <c>from=&lt;now-days&gt;</c>, plus
+    /// optional event-type and actor-user-id filters.
+    /// </summary>
+    public string BuildAuditExportUrl(int? days, string? eventType, string? actorUserId)
+    {
+        var qs = new List<string>();
+        if (days is > 0)
+        {
+            var from = DateTimeOffset.UtcNow.AddDays(-days.Value);
+            qs.Add($"from={Uri.EscapeDataString(from.ToString("O"))}");
+        }
+        if (!string.IsNullOrWhiteSpace(eventType)) qs.Add($"eventType={Uri.EscapeDataString(eventType)}");
+        if (!string.IsNullOrWhiteSpace(actorUserId)) qs.Add($"actorUserId={Uri.EscapeDataString(actorUserId)}");
+        var query = qs.Count > 0 ? "?" + string.Join("&", qs) : string.Empty;
+        var baseUrl = _http.BaseAddress is null ? string.Empty : _http.BaseAddress.ToString().TrimEnd('/');
+        return $"{baseUrl}/api/admin/audit/export{query}";
+    }
 }
