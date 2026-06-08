@@ -30,6 +30,11 @@
           "SkiaSharp.NativeAssets.macOS": "3.119.4"
         }
       },
+      "SkiaSharp.NativeAssets.Linux": {
+        "type": "Transitive",
+        "resolved": "3.119.4",
+        "contentHash": "UAyVzbqNfZsZbKbzj68zXLyUyF/SbTKmzTfOO6qDu++dtIUMMTzPBe8oOuzU/DiewpfKoUUlOSsJmqWc6blxBw=="
+      },
       "SkiaSharp.NativeAssets.macOS": {
         "type": "Transitive",
         "resolved": "3.119.4",
@@ -52,7 +57,7 @@
         "type": "Project",
         "dependencies": {
           "BouncyCastle.Cryptography": "[2.6.2, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.engine": {
@@ -61,21 +66,22 @@
           "BouncyCastle.Cryptography": "[2.6.2, )",
           "PDFsharp": "[6.2.*, )",
           "SkiaSharp": "[3.119.4, )",
-          "Stampd.Core": "[2.0.0, )"
+          "SkiaSharp.NativeAssets.Linux": "[3.119.4, )",
+          "Stampd.Core": "[2.1.0, )"
         }
       },
       "stampd.timestamp.freetsa": {
         "type": "Project",
         "dependencies": {
-          "Stampd.Core": "[2.0.0, )",
-          "Stampd.Timestamp.Rfc3161": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )",
+          "Stampd.Timestamp.Rfc3161": "[2.1.0, )"
         }
       },
       "stampd.timestamp.rfc3161": {
         "type": "Project",
         "dependencies": {
           "BouncyCastle.Cryptography": "[2.6.2, )",
-          "Stampd.Core": "[2.0.0, )"
+          "Stampd.Core": "[2.1.0, )"
         }
       }
     }
