@@ -1,9 +1,13 @@
 @page "/designer/requests"
 @rendermode InteractiveServer
+@implements IDisposable
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.Extensions.Primitives
 @inject DesignerApiClient Api
 @inject IConfiguration Config
 @inject IHostEnvironment HostEnv
 @inject CurrentUserService CurrentUser
+@inject NavigationManager Nav
 
 <PageTitle>Signing requests — Stampd</PageTitle>
 
@@ -416,11 +420,143 @@
 
     private bool AutoAuth => HostEnv.IsDevelopment();
 
+    // v2.1 #196 — URL query-string sync. We mirror the live filter / sort / page state
+    // into the URL so admins can copy a link out of the address bar and share it, and
+    // so the browser back button restores the previous state instead of falling off
+    // the page. `_suppressUriPush` guards against the LocationChanged → handler →
+    // SyncToUri loop on programmatic NavigateTo.
+    private bool _suppressUriPush;
+
     protected override async Task OnInitializedAsync()
     {
+        Nav.LocationChanged += OnLocationChanged;
+        RestoreFromUri(Nav.Uri);
         if (AutoAuth)
         {
             await LoadAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+
+    /// <summary>
+    /// Reacts to back/forward navigation (and any external Nav.NavigateTo). Re-parses
+    /// the new URL and refetches so the page reflects the address-bar truth.
+    /// </summary>
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        // Avoid re-entry: the same handler will fire again when we call SyncToUri.
+        if (_suppressUriPush) return;
+
+        RestoreFromUri(e.Location);
+        await InvokeAsync(async () =>
+        {
+            // Only refetch when we'd have refetched normally — in production
+            // mode without a JWT token, LoadAsync would just no-op anyway and
+            // we'd flash the unauth state. Mirror the OnInitializedAsync guard.
+            if (AutoAuth || !string.IsNullOrEmpty(_token))
+            {
+                await LoadAsync();
+            }
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>
+    /// Parse the current URL's query string into the filter / sort / page fields.
+    /// Tolerant of missing or malformed parameters — anything we can't make sense
+    /// of falls back to its default rather than throwing.
+    /// </summary>
+    private void RestoreFromUri(string uri)
+    {
+        var query = new Uri(uri).Query;
+        var qs = QueryHelpers.ParseQuery(query);
+
+        _selectedStatuses.Clear();
+        if (qs.TryGetValue("status", out var statusValues))
+        {
+            foreach (var raw in statusValues)
+            {
+                if (string.IsNullOrEmpty(raw)) continue;
+                foreach (var item in raw.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    _selectedStatuses.Add(item.Trim());
+                }
+            }
+        }
+
+        _senderEmailFilter = qs.TryGetValue("sender", out var sender) ? sender.ToString() : string.Empty;
+        _recipientEmailFilter = qs.TryGetValue("recipient", out var recipient) ? recipient.ToString() : string.Empty;
+        _dispatchedFromFilter = TryParseDate(qs, "from");
+        _dispatchedToFilter = TryParseDate(qs, "to");
+        _sortBy = qs.TryGetValue("sort", out var sort) && !StringValues.IsNullOrEmpty(sort)
+            ? sort.ToString()
+            : "dispatched";
+        _direction = qs.TryGetValue("dir", out var dir) && !StringValues.IsNullOrEmpty(dir)
+            ? dir.ToString()
+            : "desc";
+        _pageNumber = qs.TryGetValue("page", out var page) && int.TryParse(page, out var p) && p > 0 ? p : 1;
+        _pageSize = qs.TryGetValue("size", out var size) && int.TryParse(size, out var s) && s > 0 ? s : 25;
+
+        // Open the filter drawer if any filter is active so the user can see why
+        // the list looks restricted (e.g. shared-URL recipient lands here).
+        if (HasActiveFilters) _filtersOpen = true;
+    }
+
+    private static DateTime? TryParseDate(Dictionary<string, StringValues> qs, string key)
+    {
+        if (!qs.TryGetValue(key, out var raw) || StringValues.IsNullOrEmpty(raw)) return null;
+        return DateTime.TryParse(raw.ToString(), System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
+            out var dt) ? dt : null;
+    }
+
+    /// <summary>
+    /// Push the current filter / sort / page state to the URL. Only non-default
+    /// values become query parameters so the URL stays compact in the common
+    /// "no filters" case. Pass <c>replace: true</c> on rapid changes (text-input
+    /// blur) to avoid filling history with intermediate states.
+    /// </summary>
+    private void SyncToUri(bool replace = false)
+    {
+        var parameters = new Dictionary<string, object?>();
+        if (_selectedStatuses.Count > 0)
+            parameters["status"] = string.Join(",", _selectedStatuses.OrderBy(s => s, StringComparer.Ordinal));
+        if (!string.IsNullOrWhiteSpace(_senderEmailFilter))
+            parameters["sender"] = _senderEmailFilter.Trim();
+        if (!string.IsNullOrWhiteSpace(_recipientEmailFilter))
+            parameters["recipient"] = _recipientEmailFilter.Trim();
+        if (_dispatchedFromFilter is { } from)
+            parameters["from"] = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        if (_dispatchedToFilter is { } to)
+            parameters["to"] = to.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        if (!string.Equals(_sortBy, "dispatched", StringComparison.Ordinal))
+            parameters["sort"] = _sortBy;
+        if (!string.Equals(_direction, "desc", StringComparison.Ordinal))
+            parameters["dir"] = _direction;
+        if (_pageNumber > 1)
+            parameters["page"] = _pageNumber;
+        if (_pageSize != 25)
+            parameters["size"] = _pageSize;
+
+        var newUri = Nav.GetUriWithQueryParameters(parameters);
+        if (string.Equals(newUri, Nav.Uri, StringComparison.Ordinal)) return;
+
+        // Programmatic NavigateTo will fire LocationChanged. We've already updated
+        // the state from the live UI, and we're about to call LoadAsync ourselves,
+        // so suppress the handler's RestoreFromUri + LoadAsync to avoid the
+        // double-fetch.
+        _suppressUriPush = true;
+        try
+        {
+            Nav.NavigateTo(newUri, forceLoad: false, replace: replace);
+        }
+        finally
+        {
+            _suppressUriPush = false;
         }
     }
 
@@ -472,7 +608,8 @@
         Direction: _direction);
 
     /// <summary>
-    /// Toggles a status in the multi-select chip group, resets to page 1, refetches.
+    /// Toggles a status in the multi-select chip group, resets to page 1, refetches,
+    /// and mirrors the new state into the URL.
     /// </summary>
     private async Task ToggleStatusAsync(string status)
     {
@@ -481,10 +618,11 @@
             _selectedStatuses.Remove(status);
         }
         _pageNumber = 1;
+        SyncToUri();
         await LoadAsync();
     }
 
-    /// <summary>Sort-selector change → reset to page 1, refetch.</summary>
+    /// <summary>Sort-selector change → reset to page 1, refetch, push to URL.</summary>
     private async Task OnSortChangedAsync(ChangeEventArgs e)
     {
         var raw = e.Value?.ToString() ?? "dispatched";
@@ -494,17 +632,23 @@
         _sortBy = parts[0];
         _direction = parts.Length == 2 ? parts[1] : "desc";
         _pageNumber = 1;
+        SyncToUri();
         await LoadAsync();
     }
 
-    /// <summary>Apply text/date filters (called on input blur or Apply button).</summary>
+    /// <summary>
+    /// Apply text/date filters (called on input blur or Apply button). We use
+    /// <c>replace: true</c> here so successive keystroke-blur events don't fill
+    /// browser history with intermediate filter states — only the final value lands.
+    /// </summary>
     private async Task ApplyFiltersAsync()
     {
         _pageNumber = 1;
+        SyncToUri(replace: true);
         await LoadAsync();
     }
 
-    /// <summary>Reset every filter field back to defaults and refetch.</summary>
+    /// <summary>Reset every filter field back to defaults, refetch, push to URL.</summary>
     private async Task ClearFiltersAsync()
     {
         _selectedStatuses.Clear();
@@ -515,6 +659,7 @@
         _sortBy = "dispatched";
         _direction = "desc";
         _pageNumber = 1;
+        SyncToUri();
         await LoadAsync();
     }
 
@@ -530,6 +675,7 @@
     {
         if (_page is null || _page.Page <= 1) return;
         _pageNumber = _page.Page - 1;
+        SyncToUri();
         await LoadAsync();
     }
 
@@ -537,6 +683,7 @@
     {
         if (_page is null || _page.Page >= _page.TotalPages) return;
         _pageNumber = _page.Page + 1;
+        SyncToUri();
         await LoadAsync();
     }
 
@@ -547,6 +694,7 @@
         // at 100/page lands on a phantom page when you switch down to 10/page.
         _pageSize = newSize;
         _pageNumber = 1;
+        SyncToUri();
         await LoadAsync();
     }
 

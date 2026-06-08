@@ -223,6 +223,61 @@ if (enableTsa)
     {
         builder.Services.AddFreeTsaTimestampAuthority(tsaEndpoint is null ? null : new Uri(tsaEndpoint));
     }
+
+    // v2.1 — opt-in DigiCert failover. When Stampd:Tsa:EnableDigiCertFailover=true,
+    // we wrap whatever ITimestampAuthorityProvider was just registered with a
+    // FailoverTimestampAuthorityProvider that prepends the primary and falls
+    // back to DigiCert's free public TSA if the primary throws / times out /
+    // refuses. Default is FALSE so existing deployments see zero behaviour
+    // change. Adopters running FreeTSA in dev — where it flakes — get a
+    // one-line config knob to make the demo reliable.
+    var enableDigiCertFailover = builder.Configuration.GetValue(
+        "Stampd:Tsa:EnableDigiCertFailover", defaultValue: false);
+    if (enableDigiCertFailover)
+    {
+        builder.Services.AddHttpClient("stampd-tsa-failover-digicert", c =>
+        {
+            c.Timeout = TimeSpan.FromSeconds(15);
+        });
+        // The trick: capture the singleton already registered above, then
+        // replace its registration with one that wraps it. ServiceDescriptor
+        // .DescribeKeyed isn't needed because there's only one provider
+        // registration for the interface — the last one wins via
+        // ServiceCollection.Replace.
+        builder.Services.AddSingleton<FailoverTsaWrapperFactory>();
+        var primaryDescriptor = builder.Services.Last(
+            d => d.ServiceType == typeof(ITimestampAuthorityProvider));
+        builder.Services.Remove(primaryDescriptor);
+        builder.Services.AddSingleton<ITimestampAuthorityProvider>(sp =>
+        {
+            // Re-resolve the primary by hand using the original descriptor.
+            // We can't just call sp.GetService<ITimestampAuthorityProvider>()
+            // because that would loop back into this factory.
+            var primary = ResolvePrimary(sp, primaryDescriptor);
+            var factory = sp.GetRequiredService<FailoverTsaWrapperFactory>();
+            return factory.WrapWithDigiCert(primary);
+        });
+    }
+}
+
+// Local helper — invokes the original primary-TSA descriptor without going
+// through DI (avoids self-recursion in the wrapped registration above).
+static ITimestampAuthorityProvider ResolvePrimary(IServiceProvider sp, ServiceDescriptor descriptor)
+{
+    if (descriptor.ImplementationFactory is not null)
+    {
+        return (ITimestampAuthorityProvider)descriptor.ImplementationFactory(sp);
+    }
+    if (descriptor.ImplementationInstance is ITimestampAuthorityProvider instance)
+    {
+        return instance;
+    }
+    if (descriptor.ImplementationType is not null)
+    {
+        return (ITimestampAuthorityProvider)ActivatorUtilities.CreateInstance(sp, descriptor.ImplementationType);
+    }
+    throw new InvalidOperationException(
+        "Cannot resolve the primary ITimestampAuthorityProvider for failover wrapping.");
 }
 
 // Revocation providers for PAdES B-LT. When enabled, the engine pre-fetches OCSP / CRL

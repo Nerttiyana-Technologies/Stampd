@@ -349,6 +349,9 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.Property<DateTimeOffset?>("CompletedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("CompletedAtUtcEpochMs")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid>("ConcurrencyToken")
                         .IsConcurrencyToken()
                         .HasColumnType("TEXT");
@@ -401,6 +404,8 @@ namespace Stampd.Infrastructure.Sqlite.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentTemplateId");
+
+                    b.HasIndex("TenantId", "CompletedAtUtcEpochMs");
 
                     b.HasIndex("TenantId", "CreatedAtUtc");
 

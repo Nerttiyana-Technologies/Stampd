@@ -132,6 +132,52 @@ After yanking, bump `Directory.Build.props` to the next patch (e.g. `2.0.0 → 2
 
 ## Upgrade notes
 
+### Upgrading from v2.0.0 → v2.1.0
+
+v2.1 is a MINOR release — additive, fully backwards-compatible at the API surface. Two visible changes for adopters: a new EF migration, and a new opt-in TSA failover config flag.
+
+#### 1. Apply V15 migration on every provider
+
+`SigningRequest` gains one column — `CompletedAtUtcEpochMs` (`bigint`, nullable) — plus a covering composite index `(TenantId, CompletedAtUtcEpochMs)`. The column is the strict, server-side-sortable epoch shadow of `CompletedAtUtc`, replacing v2.0's "route completed-sort through CreatedAtUtcEpochMs" workaround in `GET /api/signing-requests`. Historical rows backfill in the same transaction (`julianday()` on SQLite, `DATEDIFF_BIG` on SqlServer, `EXTRACT(EPOCH FROM ...)` on Postgres). In-flight workflows stay null.
+
+```bash
+dotnet ef database update --project src/Stampd.Infrastructure.Sqlite    --startup-project src/Stampd.WebApi
+dotnet ef database update --project src/Stampd.Infrastructure.SqlServer --startup-project src/Stampd.WebApi
+dotnet ef database update --project src/Stampd.Infrastructure.Postgres  --startup-project src/Stampd.WebApi
+```
+
+Skip the providers you don't run. The migration is online-safe: column is nullable, backfill is `WHERE CompletedAtUtc IS NOT NULL`, index creation is non-blocking on Postgres/SqlServer.
+
+#### 2. Opt-in DigiCert TSA failover
+
+`Stampd.WebApi` gained a new config flag, `Stampd:Tsa:EnableDigiCertFailover` (default `false`). When `true`, the registered primary TSA (FreeTSA or any Rfc3161-configured endpoint) is wrapped in a `FailoverTimestampAuthorityProvider` that falls back to DigiCert's free public TSA (`http://timestamp.digicert.com`) if the primary throws, times out, or refuses. Designed to absorb FreeTSA's occasional outages without operator intervention.
+
+Enable it in `appsettings.Production.json`:
+
+```jsonc
+{
+  "Stampd": {
+    "Tsa": {
+      "EnableDigiCertFailover": true
+    }
+  }
+}
+```
+
+Default `false` preserves existing v2.0 behavior — adopters who don't flip the flag see zero change.
+
+#### 3. PdfSharp PNG alpha handling
+
+The engine now normalizes incoming PNG signature/initial images through SkiaSharp before handing them to PdfSharp's `XImage` reader. Closes a v2.0 bug where PdfSharp 6.x rendered alpha=0 pixels as opaque black, producing a black rectangle behind visibly-transparent signatures. JPEG and pre-flat PNGs are passthrough; only PNGs with an alpha channel pay the re-encode cost (~5ms for a typical signature image). No adopter action — the fix is transparent to callers.
+
+#### 4. `/designer/requests` filter state mirrored into URL
+
+The Blazor admin list page now syncs its filter / sort / page state into the address bar query string. Copying the URL gives a shareable link that restores the same view; the browser back button navigates filter history. Pure UI change — the API surface is unchanged.
+
+#### 5. `GET /api/signing-requests?sortBy=completed` is now strict
+
+In v2.0 the `completed` sort routed through `CreatedAtUtcEpochMs` as a proxy (because EF Core 10's SQLite provider can't translate ORDER BY on a `DateTimeOffset?`). With V15's epoch shadow in place, it now sorts by actual completion time. In-flight workflows (`CompletedAtUtcEpochMs IS NULL`) are pushed to the trailing bucket in both directions, with `CreatedAtUtcEpochMs` as a stable tiebreak. Adopters who depended on the v2.0 proxy behavior should re-validate any saved sort URLs — they'll now return the order they were always meant to.
+
 ### Upgrading from v1.3.0 → v2.0.0
 
 v2.0 is a MAJOR release. The library API surface stays backwards-compatible (no method signatures removed or renamed), but the deployment shape changes in three ways adopters need to plan for: a new EF migration, new authorization policies enforced on admin endpoints, and a new role claim required in production JWTs.

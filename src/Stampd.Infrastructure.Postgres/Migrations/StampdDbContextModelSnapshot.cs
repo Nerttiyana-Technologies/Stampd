@@ -354,6 +354,9 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.Property<DateTimeOffset?>("CompletedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<long?>("CompletedAtUtcEpochMs")
+                        .HasColumnType("bigint");
+
                     b.Property<Guid>("ConcurrencyToken")
                         .IsConcurrencyToken()
                         .HasColumnType("uuid");
@@ -406,6 +409,8 @@ namespace Stampd.Infrastructure.Postgres.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentTemplateId");
+
+                    b.HasIndex("TenantId", "CompletedAtUtcEpochMs");
 
                     b.HasIndex("TenantId", "CreatedAtUtc");
 

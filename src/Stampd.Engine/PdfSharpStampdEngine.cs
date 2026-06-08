@@ -11,6 +11,7 @@ using Stampd.Core;
 using Stampd.Core.Entities;
 using Stampd.Core.Revocation;
 using Stampd.Core.Sealing;
+using Stampd.Engine.Imaging;
 using Stampd.Engine.Pades;
 using Stampd.Engine.Sealing;
 
@@ -224,7 +225,14 @@ public sealed class PdfSharpStampdEngine : IStampdEngine
             case SignatureFieldKind.Signature:
             case SignatureFieldKind.Initials:
                 {
-                    var bytes = value.ToArray();
+                    // v2.1 #213: route the bytes through SignatureImageNormalizer so
+                    // browser-canvas PNGs (which carry an 8-bit RGBA alpha channel)
+                    // get re-encoded by Skia into a strict, well-formed RGBA PNG
+                    // that PDFsharp's reader composites correctly. Prior to this
+                    // fix, transparent PNG pixels rendered as opaque black behind
+                    // the signature ink — the v2.0 demos worked around it by
+                    // exporting opaque JPEG. This restores true transparency.
+                    var bytes = SignatureImageNormalizer.Normalize(value);
                     using var imageStream = new MemoryStream(bytes, writable: false);
                     using var image = XImage.FromStream(imageStream);
                     gfx.DrawImage(image, rect);

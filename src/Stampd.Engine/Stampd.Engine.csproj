@@ -44,6 +44,7 @@
       with the PRD; can be removed if unused.
     -->
     <PackageReference Include="SkiaSharp" Version="3.119.4" />
+    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.300" />
   </ItemGroup>
 
   <ItemGroup>

@@ -39,6 +39,15 @@ public sealed class SigningRequest
     /// </summary>
     public long CreatedAtUtcEpochMs { get; set; }
 
+    /// <summary>
+    /// Unix epoch milliseconds copy of <see cref="CompletedAtUtc"/>. Lets the v2 Slice B
+    /// "completed" sort and any future date-range filter on completion run server-side
+    /// without the DateTimeOffset? ORDER BY translation gotcha (Doc 16 / v1.2 #115 bug
+    /// family). Synced by the SaveChanges interceptor on every save so the column tracks
+    /// the workflow's terminal transition. Null while the request is still in flight.
+    /// </summary>
+    public long? CompletedAtUtcEpochMs { get; set; }
+
     /// <summary>Recorded reason when <see cref="Status"/> is <see cref="SigningRequestStatus.Declined"/> or <see cref="SigningRequestStatus.Voided"/>.</summary>
     public string? TerminationReason { get; set; }
 

@@ -157,6 +157,12 @@ public class StampdDbContext : DbContext
                         request.CreatedAtUtcEpochMs = request.CreatedAtUtc.ToUnixTimeMilliseconds();
                     }
 
+                    // v2.1 #212 — CompletedAtUtc transitions from null → set mid-lifecycle
+                    // (in SigningWorkflowService when the workflow reaches Completed). Keep
+                    // the epoch shadow in sync on every save so it tracks the live value
+                    // on both Added (rare) and Modified. Null in → null shadow.
+                    request.CompletedAtUtcEpochMs = request.CompletedAtUtc?.ToUnixTimeMilliseconds();
+
                     request.ConcurrencyToken = Guid.NewGuid();
                     break;
 
