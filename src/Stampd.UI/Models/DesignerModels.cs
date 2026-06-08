@@ -240,13 +240,19 @@ public sealed record BulkOperationItem(
     [property: JsonPropertyName("success")] bool Success,
     [property: JsonPropertyName("error")] string? Error);
 
-/// <summary>v2.0 Slice C — GET /api/admin/analytics/funnel mirror.</summary>
+/// <summary>v2.0 Slice C — GET /api/admin/analytics/funnel mirror. v2.2 adds prior-window comparison + request-weighted view.</summary>
 public sealed record AdminAnalyticsFunnel(
     [property: JsonPropertyName("windowDays")] int WindowDays,
     [property: JsonPropertyName("total")] int Total,
     [property: JsonPropertyName("stages")] AdminFunnelStages Stages,
     [property: JsonPropertyName("dropOff")] AdminFunnelDropOff DropOff,
-    [property: JsonPropertyName("conversionRatePercent")] double ConversionRatePercent);
+    [property: JsonPropertyName("conversionRatePercent")] double ConversionRatePercent,
+    // v2.2 #223 — nullable so older WebApi instances still deserialize. UI hides
+    // the delta chip when the field is absent.
+    [property: JsonPropertyName("previousWindow")] AdminFunnelPreviousWindow? PreviousWindow = null,
+    [property: JsonPropertyName("deltas")] AdminFunnelDeltas? Deltas = null,
+    // v2.2 #225 — request-weighted view. Null for v2.1 and earlier WebApi instances.
+    [property: JsonPropertyName("requestWeighted")] AdminFunnelRequestWeighted? RequestWeighted = null);
 
 public sealed record AdminFunnelStages(
     [property: JsonPropertyName("invited")] int Invited,
@@ -259,26 +265,107 @@ public sealed record AdminFunnelDropOff(
     [property: JsonPropertyName("invitedToViewedPercent")] double InvitedToViewedPercent,
     [property: JsonPropertyName("viewedToSignedPercent")] double ViewedToSignedPercent);
 
-/// <summary>v2.0 Slice C — GET /api/admin/analytics/time-to-sign mirror.</summary>
+/// <summary>v2.2 #223 — prior-window funnel snapshot.</summary>
+public sealed record AdminFunnelPreviousWindow(
+    [property: JsonPropertyName("total")] int Total,
+    [property: JsonPropertyName("stages")] AdminFunnelStages Stages,
+    [property: JsonPropertyName("conversionRatePercent")] double ConversionRatePercent);
+
+/// <summary>v2.2 #223 — funnel deltas (current vs prior).</summary>
+public sealed record AdminFunnelDeltas(
+    [property: JsonPropertyName("totalPercent")] double TotalPercent,
+    [property: JsonPropertyName("signedPercent")] double SignedPercent,
+    [property: JsonPropertyName("conversionRatePercentPoints")] double ConversionRatePercentPoints);
+
+/// <summary>v2.2 #225 — request-weighted funnel (a 2-of-3 signed request = 0.67).</summary>
+public sealed record AdminFunnelRequestWeighted(
+    [property: JsonPropertyName("requestCount")] int RequestCount,
+    [property: JsonPropertyName("fullyCompletedRequests")] int FullyCompletedRequests,
+    [property: JsonPropertyName("weightedCompletionFraction")] double WeightedCompletionFraction,
+    [property: JsonPropertyName("weightedCompletionPercent")] double WeightedCompletionPercent,
+    [property: JsonPropertyName("previousWindow")] AdminFunnelRequestWeightedPreviousWindow? PreviousWindow = null,
+    [property: JsonPropertyName("deltas")] AdminFunnelRequestWeightedDeltas? Deltas = null);
+
+public sealed record AdminFunnelRequestWeightedPreviousWindow(
+    [property: JsonPropertyName("requestCount")] int RequestCount,
+    [property: JsonPropertyName("fullyCompletedRequests")] int FullyCompletedRequests,
+    [property: JsonPropertyName("weightedCompletionPercent")] double WeightedCompletionPercent);
+
+public sealed record AdminFunnelRequestWeightedDeltas(
+    [property: JsonPropertyName("weightedCompletionPercentPoints")] double WeightedCompletionPercentPoints);
+
+/// <summary>v2.0 Slice C — GET /api/admin/analytics/time-to-sign mirror. v2.2 adds prior-window comparison + per-role segmentation.</summary>
 public sealed record AdminTimeToSign(
     [property: JsonPropertyName("windowDays")] int WindowDays,
     [property: JsonPropertyName("take")] int Take,
-    [property: JsonPropertyName("items")] IReadOnlyList<AdminTimeToSignRow> Items);
+    [property: JsonPropertyName("items")] IReadOnlyList<AdminTimeToSignRow> Items,
+    // v2.2 #226 — per-role segmentation. Null when talking to a pre-v2.2 WebApi.
+    [property: JsonPropertyName("byRole")] IReadOnlyList<AdminTimeToSignByRoleRow>? ByRole = null);
 
 public sealed record AdminTimeToSignRow(
     [property: JsonPropertyName("templateId")] Guid TemplateId,
     [property: JsonPropertyName("templateName")] string TemplateName,
     [property: JsonPropertyName("signedCount")] int SignedCount,
     [property: JsonPropertyName("avgMinutes")] double AvgMinutes,
+    [property: JsonPropertyName("medianMinutes")] double MedianMinutes,
+    // v2.2 #223 — per-template prior-window comparison. Null when the template is
+    // new in the current window (no baseline to compare to).
+    [property: JsonPropertyName("previousWindow")] AdminTimeToSignPreviousWindow? PreviousWindow = null,
+    [property: JsonPropertyName("avgMinutesDeltaPercent")] double? AvgMinutesDeltaPercent = null,
+    [property: JsonPropertyName("medianMinutesDeltaPercent")] double? MedianMinutesDeltaPercent = null);
+
+public sealed record AdminTimeToSignPreviousWindow(
+    [property: JsonPropertyName("signedCount")] int SignedCount,
+    [property: JsonPropertyName("avgMinutes")] double AvgMinutes,
     [property: JsonPropertyName("medianMinutes")] double MedianMinutes);
 
-/// <summary>v2.0 Slice C — GET /api/admin/analytics/identity-verification mirror.</summary>
+/// <summary>v2.2 #226 — per-role aggregation row.</summary>
+public sealed record AdminTimeToSignByRoleRow(
+    [property: JsonPropertyName("roleName")] string RoleName,
+    [property: JsonPropertyName("signedCount")] int SignedCount,
+    [property: JsonPropertyName("avgMinutes")] double AvgMinutes,
+    [property: JsonPropertyName("medianMinutes")] double MedianMinutes,
+    [property: JsonPropertyName("previousWindow")] AdminTimeToSignPreviousWindow? PreviousWindow = null,
+    [property: JsonPropertyName("avgMinutesDeltaPercent")] double? AvgMinutesDeltaPercent = null,
+    [property: JsonPropertyName("medianMinutesDeltaPercent")] double? MedianMinutesDeltaPercent = null);
+
+/// <summary>v2.0 Slice C — GET /api/admin/analytics/identity-verification mirror. v2.2 adds prior-window comparison + per-channel breakdown.</summary>
 public sealed record AdminIdentityVerification(
     [property: JsonPropertyName("windowDays")] int WindowDays,
     [property: JsonPropertyName("requiredCount")] int RequiredCount,
     [property: JsonPropertyName("verifiedCount")] int VerifiedCount,
     [property: JsonPropertyName("verifyRatePercent")] double VerifyRatePercent,
     [property: JsonPropertyName("initiatesCount")] int InitiatesCount,
+    [property: JsonPropertyName("lockedOutCount")] int LockedOutCount,
+    [property: JsonPropertyName("previousWindow")] AdminIdentityVerificationPreviousWindow? PreviousWindow = null,
+    [property: JsonPropertyName("deltas")] AdminIdentityVerificationDeltas? Deltas = null,
+    // v2.2 #224 — per-channel breakdown for the lockout-by-method chart. Null when
+    // talking to a v2.1 or earlier WebApi instance.
+    [property: JsonPropertyName("byChannel")] AdminIdentityVerificationByChannel? ByChannel = null);
+
+public sealed record AdminIdentityVerificationPreviousWindow(
+    [property: JsonPropertyName("requiredCount")] int RequiredCount,
+    [property: JsonPropertyName("verifiedCount")] int VerifiedCount,
+    [property: JsonPropertyName("verifyRatePercent")] double VerifyRatePercent,
+    [property: JsonPropertyName("initiatesCount")] int InitiatesCount,
+    [property: JsonPropertyName("lockedOutCount")] int LockedOutCount);
+
+public sealed record AdminIdentityVerificationDeltas(
+    [property: JsonPropertyName("requiredCountPercent")] double RequiredCountPercent,
+    [property: JsonPropertyName("verifiedCountPercent")] double VerifiedCountPercent,
+    [property: JsonPropertyName("verifyRatePercentPoints")] double VerifyRatePercentPoints,
+    [property: JsonPropertyName("initiatesCountPercent")] double InitiatesCountPercent,
+    [property: JsonPropertyName("lockedOutCountPercent")] double LockedOutCountPercent);
+
+/// <summary>v2.2 #224 — per-channel IV counts (Email / SMS / KBA).</summary>
+public sealed record AdminIdentityVerificationByChannel(
+    [property: JsonPropertyName("email")] AdminIdentityVerificationChannelCounts Email,
+    [property: JsonPropertyName("sms")] AdminIdentityVerificationChannelCounts Sms,
+    [property: JsonPropertyName("kba")] AdminIdentityVerificationChannelCounts Kba);
+
+public sealed record AdminIdentityVerificationChannelCounts(
+    [property: JsonPropertyName("initiatesCount")] int InitiatesCount,
+    [property: JsonPropertyName("verifiedCount")] int VerifiedCount,
     [property: JsonPropertyName("lockedOutCount")] int LockedOutCount);
 
 /// <summary>Working state for one designer-placed field. Index is local to the editor.</summary>

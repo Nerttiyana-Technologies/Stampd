@@ -188,11 +188,63 @@
                             <strong style="font-size:0.86rem;">@_funnel.Stages.Signed</strong>
                         </div>
                     </div>
-                    <div style="display:flex; gap:1rem; margin-top:0.6rem; font-size:0.8rem; color: var(--stampd-muted);">
+                    <div style="display:flex; gap:1rem; margin-top:0.6rem; font-size:0.8rem; color: var(--stampd-muted); flex-wrap:wrap;">
                         <span>Drop-off Invited → Viewed: <strong style="color: var(--stampd-fg);">@_funnel.DropOff.InvitedToViewedPercent.ToString("0.#")%</strong></span>
                         <span>Drop-off Viewed → Signed: <strong style="color: var(--stampd-fg);">@_funnel.DropOff.ViewedToSignedPercent.ToString("0.#")%</strong></span>
-                        <span style="margin-left:auto;">Conversion: <strong style="color: var(--stampd-fg);">@_funnel.ConversionRatePercent.ToString("0.#")%</strong></span>
+                        <span style="margin-left:auto;">
+                            Conversion: <strong style="color: var(--stampd-fg);">@_funnel.ConversionRatePercent.ToString("0.#")%</strong>
+                            @if (_funnel.Deltas is { } d)
+                            {
+                                @RenderDeltaPoints(d.ConversionRatePercentPoints, lowerIsBetter: false)
+                            }
+                        </span>
                     </div>
+                    @* v2.2 #223 — prior-window context line. Shows total signed delta
+                       so admins see direction even when the rate looks flat. *@
+                    @if (_funnel.PreviousWindow is { } prev && _funnel.Deltas is { } fd)
+                    {
+                        <div style="font-size:0.78rem; color: var(--stampd-muted); margin-top:0.35rem;">
+                            Prior @_analyticsDays days: @prev.Stages.Signed signed of @prev.Total
+                            (@prev.ConversionRatePercent.ToString("0.#")% conversion).
+                            Volume: @RenderDeltaPercent(fd.TotalPercent, lowerIsBetter: false)
+                            · Signed: @RenderDeltaPercent(fd.SignedPercent, lowerIsBetter: false)
+                        </div>
+                    }
+
+                    @* v2.2 #225 — request-weighted view. Sits below the recipient-level
+                       funnel so admins read both at once: per-recipient flow vs request-
+                       level completion. The weighted % treats a 2-of-3 request as 0.67
+                       so multi-recipient workflows aren't punished for partial state. *@
+                    @if (_funnel.RequestWeighted is { } rw)
+                    {
+                        <div style="margin-top:1rem; padding-top:0.85rem; border-top:1px solid var(--stampd-border);">
+                            <div class="signer-field-label">Request-weighted completion</div>
+                            <div style="display:flex; flex-wrap:wrap; gap:1.25rem; margin-top:0.5rem; font-size:0.85rem;">
+                                <div>
+                                    <span style="color: var(--stampd-muted);">Weighted complete:</span>
+                                    <strong style="font-size:1.05rem; margin-left:0.35rem;">@rw.WeightedCompletionPercent.ToString("0.#")%</strong>
+                                    @if (rw.Deltas is { } rwd)
+                                    {
+                                        @RenderDeltaPoints(rwd.WeightedCompletionPercentPoints, lowerIsBetter: false)
+                                    }
+                                </div>
+                                <div>
+                                    <span style="color: var(--stampd-muted);">Requests:</span>
+                                    <strong style="margin-left:0.35rem;">@rw.RequestCount</strong>
+                                </div>
+                                <div>
+                                    <span style="color: var(--stampd-muted);">Fully completed:</span>
+                                    <strong style="margin-left:0.35rem;">@rw.FullyCompletedRequests</strong>
+                                    <span style="color: var(--stampd-muted); margin-left:0.25rem; font-size:0.78rem;">
+                                        (@(rw.RequestCount == 0 ? "0" : Math.Round(rw.FullyCompletedRequests * 100.0 / rw.RequestCount, 1).ToString("0.#"))% all-signed)
+                                    </span>
+                                </div>
+                            </div>
+                            <div style="font-size:0.72rem; color: var(--stampd-muted); margin-top:0.35rem; font-style:italic;">
+                                Each request contributes <code>signed ÷ recipients</code> to the average — a 2-of-3 signed request scores 0.67, not 0.
+                            </div>
+                        </div>
+                    }
                 </div>
             }
 
@@ -206,22 +258,109 @@
                         <div style="@ivTile">
                             <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Required</div>
                             <div style="font-size:1.2rem; font-weight:700;">@_iv.RequiredCount</div>
+                            @if (_iv.Deltas is { } rd)
+                            {
+                                <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(rd.RequiredCountPercent, lowerIsBetter: false)</div>
+                            }
                         </div>
                         <div style="@ivTile">
                             <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Verified</div>
                             <div style="font-size:1.2rem; font-weight:700; color:#16a34a;">@_iv.VerifiedCount</div>
-                            <div style="font-size:0.72rem; color: var(--stampd-muted);">@_iv.VerifyRatePercent.ToString("0.#")% success</div>
+                            <div style="font-size:0.72rem; color: var(--stampd-muted);">
+                                @_iv.VerifyRatePercent.ToString("0.#")% success
+                                @if (_iv.Deltas is { } vd)
+                                {
+                                    @RenderDeltaPoints(vd.VerifyRatePercentPoints, lowerIsBetter: false)
+                                }
+                            </div>
                         </div>
                         <div style="@ivTile">
                             <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">OTP initiates</div>
                             <div style="font-size:1.2rem; font-weight:700;">@_iv.InitiatesCount</div>
+                            @if (_iv.Deltas is { } id)
+                            {
+                                <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(id.InitiatesCountPercent, lowerIsBetter: false)</div>
+                            }
                         </div>
                         <div style="@ivTile">
                             <div style="font-size:0.72rem; color: var(--stampd-muted); text-transform:uppercase; letter-spacing:0.05em;">Locked out</div>
                             <div style="font-size:1.2rem; font-weight:700; color:#dc2626;">@_iv.LockedOutCount</div>
-                            <div style="font-size:0.72rem; color: var(--stampd-muted);">Hit max-attempts threshold</div>
+                            <div style="font-size:0.72rem; color: var(--stampd-muted);">
+                                Hit max-attempts threshold
+                                @if (_iv.Deltas is { } ld)
+                                {
+                                    @* Lower lockouts are better — flip the color sense. *@
+                                    @RenderDeltaPercent(ld.LockedOutCountPercent, lowerIsBetter: true)
+                                }
+                            </div>
                         </div>
                     </div>
+
+                    @* v2.2 #224 — per-channel breakdown. Two small stacked bars: one for
+                       "OTP initiates by channel" (volume) and one for "Locked out by
+                       channel" (which method is taking the brute-force pressure). KBA
+                       initiates surface as the verified count (no separate attempt log)
+                       which we flag in the legend so admins don't misread it. *@
+                    @if (_iv.ByChannel is { } bc)
+                    {
+                        var totalInit = bc.Email.InitiatesCount + bc.Sms.InitiatesCount + bc.Kba.InitiatesCount;
+                        var totalLocked = bc.Email.LockedOutCount + bc.Sms.LockedOutCount + bc.Kba.LockedOutCount;
+                        <div style="margin-top:1rem; padding-top:0.85rem; border-top:1px solid var(--stampd-border);">
+                            <div class="signer-field-label">By channel</div>
+                            <div style="display:grid; grid-template-columns: 130px 1fr; gap:0.6rem; margin-top:0.5rem; font-size:0.82rem; align-items:center;">
+                                <div style="color: var(--stampd-muted);">OTP initiates</div>
+                                <div>
+                                    @if (totalInit == 0)
+                                    {
+                                        <span style="color: var(--stampd-muted);">No activity in this window.</span>
+                                    }
+                                    else
+                                    {
+                                        <div style="display:flex; height:14px; border-radius:4px; overflow:hidden; background: var(--stampd-surface-alt);">
+                                            <div title="Email: @bc.Email.InitiatesCount"
+                                                 style="width:@(StackPct(bc.Email.InitiatesCount, totalInit))%; background:#0b3c6e;"></div>
+                                            <div title="SMS: @bc.Sms.InitiatesCount"
+                                                 style="width:@(StackPct(bc.Sms.InitiatesCount, totalInit))%; background:#1a5698;"></div>
+                                            <div title="KBA: @bc.Kba.InitiatesCount (proxied from verified — no separate attempt log)"
+                                                 style="width:@(StackPct(bc.Kba.InitiatesCount, totalInit))%; background:#16a34a;"></div>
+                                        </div>
+                                        <div style="display:flex; gap:0.85rem; margin-top:0.3rem; font-size:0.75rem; color: var(--stampd-muted);">
+                                            <span><span style="display:inline-block; width:8px; height:8px; background:#0b3c6e; border-radius:2px; margin-right:3px;"></span> Email @bc.Email.InitiatesCount</span>
+                                            <span><span style="display:inline-block; width:8px; height:8px; background:#1a5698; border-radius:2px; margin-right:3px;"></span> SMS @bc.Sms.InitiatesCount</span>
+                                            <span><span style="display:inline-block; width:8px; height:8px; background:#16a34a; border-radius:2px; margin-right:3px;"></span> KBA @bc.Kba.InitiatesCount*</span>
+                                        </div>
+                                    }
+                                </div>
+                                <div style="color: var(--stampd-muted);">Locked out</div>
+                                <div>
+                                    @if (totalLocked == 0)
+                                    {
+                                        <span style="color: var(--stampd-muted);">None.</span>
+                                    }
+                                    else
+                                    {
+                                        <div style="display:flex; height:14px; border-radius:4px; overflow:hidden; background: var(--stampd-surface-alt);">
+                                            <div title="Email: @bc.Email.LockedOutCount"
+                                                 style="width:@(StackPct(bc.Email.LockedOutCount, totalLocked))%; background:#dc2626;"></div>
+                                            <div title="SMS: @bc.Sms.LockedOutCount"
+                                                 style="width:@(StackPct(bc.Sms.LockedOutCount, totalLocked))%; background:#f97316;"></div>
+                                            @* KBA lockout is always 0 today (no attempt log) — render the slice anyway for layout consistency when adopters add their own tracking. *@
+                                            <div title="KBA: @bc.Kba.LockedOutCount (no separate attempt log)"
+                                                 style="width:@(StackPct(bc.Kba.LockedOutCount, totalLocked))%; background:#a16207;"></div>
+                                        </div>
+                                        <div style="display:flex; gap:0.85rem; margin-top:0.3rem; font-size:0.75rem; color: var(--stampd-muted);">
+                                            <span><span style="display:inline-block; width:8px; height:8px; background:#dc2626; border-radius:2px; margin-right:3px;"></span> Email @bc.Email.LockedOutCount</span>
+                                            <span><span style="display:inline-block; width:8px; height:8px; background:#f97316; border-radius:2px; margin-right:3px;"></span> SMS @bc.Sms.LockedOutCount</span>
+                                            <span><span style="display:inline-block; width:8px; height:8px; background:#a16207; border-radius:2px; margin-right:3px;"></span> KBA @bc.Kba.LockedOutCount</span>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                            <div style="font-size:0.7rem; color: var(--stampd-muted); margin-top:0.5rem; font-style:italic;">
+                                * KBA doesn't flow through the OTP store, so its initiate count is proxied from its verified count.
+                            </div>
+                        </div>
+                    }
                 </div>
             }
 
@@ -242,13 +381,80 @@
                             <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
                                 <div>
                                     <div style="font-weight:600;">@t.TemplateName</div>
+                                    @if (t.PreviousWindow is { } pw)
+                                    {
+                                        <div style="font-size:0.72rem; color: var(--stampd-muted); margin-top:2px;">
+                                            Prior: @pw.SignedCount signed, avg @pw.AvgMinutes.ToString("0.#")m, med @pw.MedianMinutes.ToString("0.#")m
+                                        </div>
+                                    }
                                 </div>
                                 <div>@t.SignedCount</div>
-                                <div>@t.AvgMinutes.ToString("0.#")</div>
-                                <div>@t.MedianMinutes.ToString("0.#")</div>
+                                <div>
+                                    @t.AvgMinutes.ToString("0.#")
+                                    @if (t.AvgMinutesDeltaPercent is { } adp)
+                                    {
+                                        @* Lower time-to-sign is better, so flip color sense. *@
+                                        <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(adp, lowerIsBetter: true)</div>
+                                    }
+                                </div>
+                                <div>
+                                    @t.MedianMinutes.ToString("0.#")
+                                    @if (t.MedianMinutesDeltaPercent is { } mdp)
+                                    {
+                                        <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(mdp, lowerIsBetter: true)</div>
+                                    }
+                                </div>
                             </div>
                         }
                     </div>
+
+                    @* v2.2 #226 — per-role segmentation. Same table shape as per-template
+                       so the page reads consistently — admins toggle between two views of
+                       the same data. Aggregates across templates so a tenant with 5
+                       templates each having an "Approver" role sees one Approver row. *@
+                    @if (_timeToSign.ByRole is { Count: > 0 } byRole)
+                    {
+                        <div style="margin-top:1.25rem;">
+                            <div class="signer-field-label">Time-to-sign by role</div>
+                            <div class="stampd-template-table" style="margin-top:0.5rem;">
+                                <div class="stampd-request-row stampd-template-head" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
+                                    <div>Role</div>
+                                    <div>Signed</div>
+                                    <div>Avg (min)</div>
+                                    <div>Median (min)</div>
+                                </div>
+                                @foreach (var r in byRole)
+                                {
+                                    <div class="stampd-request-row" style="grid-template-columns: 2.5fr 1fr 1fr 1fr;">
+                                        <div>
+                                            <div style="font-weight:600;">@r.RoleName</div>
+                                            @if (r.PreviousWindow is { } pwr)
+                                            {
+                                                <div style="font-size:0.72rem; color: var(--stampd-muted); margin-top:2px;">
+                                                    Prior: @pwr.SignedCount signed, avg @pwr.AvgMinutes.ToString("0.#")m, med @pwr.MedianMinutes.ToString("0.#")m
+                                                </div>
+                                            }
+                                        </div>
+                                        <div>@r.SignedCount</div>
+                                        <div>
+                                            @r.AvgMinutes.ToString("0.#")
+                                            @if (r.AvgMinutesDeltaPercent is { } radp)
+                                            {
+                                                <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(radp, lowerIsBetter: true)</div>
+                                            }
+                                        </div>
+                                        <div>
+                                            @r.MedianMinutes.ToString("0.#")
+                                            @if (r.MedianMinutesDeltaPercent is { } rmdp)
+                                            {
+                                                <div style="font-size:0.72rem; margin-top:2px;">@RenderDeltaPercent(rmdp, lowerIsBetter: true)</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
                 </div>
             }
         </section>
@@ -330,6 +536,44 @@
     private AdminAnalyticsFunnel? _funnel;
     private AdminTimeToSign? _timeToSign;
     private AdminIdentityVerification? _iv;
+
+    // v2.2 #223 — delta-chip rendering helpers.
+    //
+    // `delta` is a percent (e.g. 12.3 for +12.3%). `lowerIsBetter` flips the color
+    // semantics — for time-to-sign and lockout count, a negative delta is GOOD.
+    // We return a MarkupString so the caller can drop it inside another element
+    // without Blazor re-escaping the arrow glyphs.
+    private static MarkupString RenderDeltaPercent(double delta, bool lowerIsBetter)
+        => RenderDelta(delta, suffix: "%", lowerIsBetter);
+
+    private static MarkupString RenderDeltaPoints(double delta, bool lowerIsBetter)
+        => RenderDelta(delta, suffix: "pp", lowerIsBetter);
+
+    private static MarkupString RenderDelta(double delta, string suffix, bool lowerIsBetter)
+    {
+        if (delta == 0)
+        {
+            return new MarkupString("<span style=\"color: var(--stampd-muted); margin-left:0.35rem;\">—</span>");
+        }
+
+        var isImprovement = lowerIsBetter ? delta < 0 : delta > 0;
+        var color = isImprovement ? "#16a34a" : "#dc2626";
+        var arrow = delta > 0 ? "▲" : "▼";
+        var formatted = Math.Abs(delta).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        return new MarkupString(
+            $"<span style=\"color:{color}; margin-left:0.35rem; font-weight:600;\">{arrow} {formatted}{suffix}</span>");
+    }
+
+    /// <summary>
+    /// Stacked-bar width helper. Returns the percentage as an invariant-formatted
+    /// number with one decimal so the inline-style string stays culture-stable
+    /// across server locales (otherwise a comma decimal separator from a de-DE
+    /// locale would corrupt the CSS).
+    /// </summary>
+    private static string StackPct(int part, int total) =>
+        total == 0
+            ? "0"
+            : (part * 100.0 / total).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 
     protected override async Task OnInitializedAsync()
     {
