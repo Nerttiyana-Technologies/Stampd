@@ -55,6 +55,16 @@
     <!-- Health checks -->
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.8" />
 
+    <!--
+      EF Core design-time tooling. Required ONLY by `dotnet ef` (migrations add /
+      database update / script). PrivateAssets="all" + IncludeAssets="..." keeps it
+      out of the published WebApi binary — it lives only in the dev-time tool graph.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+
     <!-- JWT auth -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.8" />
 

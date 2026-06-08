@@ -242,18 +242,19 @@ internal static class SigningRequestEndpoints
 
         IQueryable<SigningRequest> orderedQuery = normalizedSort switch
         {
-            // v2.0 known limitation — EF Core 10's SQLite provider doesn't translate
-            // ORDER BY on a DateTimeOffset? column (the Doc 16 / v1.2 #115 family of
-            // bugs). The proper fix is a CompletedAtUtcEpochMs shadow column with a
-            // V15 migration (same pattern as v1.3 #133); until that ships, route the
-            // "completed" sort through the existing CreatedAtUtcEpochMs column. The
-            // two are highly correlated in practice (a workflow dispatched on day N
-            // is almost always completed within a few days), so the sort gives
-            // intuitively-right results for the common case. Adopters needing a
-            // strict completed-date sort should target v2.1+ where V15 lands.
+            // v2.1 #212 — strict completed-date sort, backed by the V15
+            // (TenantId, CompletedAtUtcEpochMs) covering index. In-flight workflows
+            // have a null shadow; we push them to the trailing bucket regardless of
+            // direction so the visible page always leads with concrete completion
+            // dates and the user doesn't see a wall of nulls at the top of "desc".
+            // The ThenBy on CreatedAtUtcEpochMs gives a stable tiebreak.
             "completed" => ascending
-                ? query.OrderBy(r => r.CreatedAtUtcEpochMs)
-                : query.OrderByDescending(r => r.CreatedAtUtcEpochMs),
+                ? query.OrderBy(r => r.CompletedAtUtcEpochMs == null)
+                       .ThenBy(r => r.CompletedAtUtcEpochMs)
+                       .ThenByDescending(r => r.CreatedAtUtcEpochMs)
+                : query.OrderBy(r => r.CompletedAtUtcEpochMs == null)
+                       .ThenByDescending(r => r.CompletedAtUtcEpochMs)
+                       .ThenByDescending(r => r.CreatedAtUtcEpochMs),
             "status" => ascending
                 ? query.OrderBy(r => r.Status).ThenByDescending(r => r.CreatedAtUtcEpochMs)
                 : query.OrderByDescending(r => r.Status).ThenByDescending(r => r.CreatedAtUtcEpochMs),

@@ -31,6 +31,8 @@
     <ProjectReference Include="..\..\src\Stampd.Engine\Stampd.Engine.csproj" />
     <ProjectReference Include="..\..\src\Stampd.Crypto.LocalCertificate\Stampd.Crypto.LocalCertificate.csproj" />
     <ProjectReference Include="..\..\src\Stampd.Timestamp.FreeTsa\Stampd.Timestamp.FreeTsa.csproj" />
+    <!-- Added for v2.1 — FailoverTimestampAuthorityProvider + DigiCert preset. -->
+    <ProjectReference Include="..\..\src\Stampd.Timestamp.Rfc3161\Stampd.Timestamp.Rfc3161.csproj" />
   </ItemGroup>
 
 </Project>

@@ -22,6 +22,7 @@
       RsaDigestSigner restores parity with the proven-working spike output.
     -->
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.300" />
   </ItemGroup>
 
   <ItemGroup>

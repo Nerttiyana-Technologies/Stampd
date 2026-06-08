@@ -6,9 +6,9 @@ using System.Text;
 
 using Stampd.ByoCertDemo.Models;
 using Stampd.Core;
+using Stampd.Core.Sealing;
 using Stampd.Crypto.LocalCertificate;
 using Stampd.Engine;
-using Stampd.Timestamp.FreeTsa;
 
 namespace Stampd.ByoCertDemo.Services;
 
@@ -20,11 +20,14 @@ namespace Stampd.ByoCertDemo.Services;
 /// </summary>
 public sealed class PdfSignerService
 {
-    private readonly FreeTsaTimestampAuthorityProvider _tsa;
+    private readonly ITimestampAuthorityProvider _tsa;
     private readonly ILogger<PdfSignerService> _logger;
 
-    public PdfSignerService(FreeTsaTimestampAuthorityProvider tsa, ILogger<PdfSignerService> logger)
+    public PdfSignerService(ITimestampAuthorityProvider tsa, ILogger<PdfSignerService> logger)
     {
+        // DI resolves to a FailoverTimestampAuthorityProvider (FreeTSA primary,
+        // DigiCert fallback) configured in Program.cs. From this service's
+        // perspective the failover is invisible — we just call RequestTimestampAsync.
         _tsa = tsa;
         _logger = logger;
     }
@@ -87,6 +90,14 @@ public sealed class PdfSignerService
     {
         ArgumentNullException.ThrowIfNull(cert);
         ArgumentNullException.ThrowIfNull(pdfBytes);
+
+        // Diagnostic: prove the failover provider is wired up correctly. Should print
+        // "FailoverTimestampAuthorityProvider" with the FreeTSA → DigiCert name chain.
+        // If it prints just "FreeTsaTimestampAuthorityProvider", the failover DI
+        // registration in Program.cs isn't taking effect — likely a stale build.
+        _logger.LogInformation(
+            "PdfSignerService starting sign — TSA type: {TsaType}, TSA name: {TsaName}, useTsa={UseTsa}",
+            _tsa.GetType().Name, _tsa.Name, useTsa);
 
         var sw = Stopwatch.StartNew();
         var sealingProvider = new LocalCertificateSealingProvider(cert);

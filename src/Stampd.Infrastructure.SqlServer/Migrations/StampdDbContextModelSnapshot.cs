@@ -354,6 +354,9 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.Property<DateTimeOffset?>("CompletedAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<long?>("CompletedAtUtcEpochMs")
+                        .HasColumnType("bigint");
+
                     b.Property<Guid>("ConcurrencyToken")
                         .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
@@ -406,6 +409,8 @@ namespace Stampd.Infrastructure.SqlServer.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentTemplateId");
+
+                    b.HasIndex("TenantId", "CompletedAtUtcEpochMs");
 
                     b.HasIndex("TenantId", "CreatedAtUtc");
 

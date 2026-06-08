@@ -59,4 +59,32 @@ public static class Rfc3161ServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// DigiCert's public RFC 3161 TSA endpoint. Free, no authentication, used widely as a
+    /// fallback for community-run TSAs like FreeTSA. Sub-second response, production-grade
+    /// uptime. Not AATL-trusted for Adobe but accepted as a valid timestamp authority.
+    /// </summary>
+    public const string DigiCertPublicTsaUrl = "http://timestamp.digicert.com";
+
+    /// <summary>
+    /// Builds a configured <see cref="Rfc3161TimestampAuthorityProvider"/> pointed at
+    /// DigiCert's free public TSA. Use as a failover behind FreeTSA or a paid commercial
+    /// TSA. Constructs its own short-lived <see cref="HttpClient"/> — for production code
+    /// prefer the <see cref="AddRfc3161TimestampAuthority"/> DI registration.
+    /// </summary>
+    public static Rfc3161TimestampAuthorityProvider CreateDigiCertProvider(
+        HttpClient httpClient,
+        TimeSpan? timeout = null)
+    {
+        ArgumentNullException.ThrowIfNull(httpClient);
+        return new Rfc3161TimestampAuthorityProvider(
+            httpClient,
+            new Rfc3161TimestampAuthorityOptions
+            {
+                Name = "DigiCert",
+                Endpoint = new Uri(DigiCertPublicTsaUrl),
+                RequestTimeout = timeout ?? TimeSpan.FromSeconds(15),
+            });
+    }
 }

@@ -117,27 +117,12 @@ window.stampdSignaturePad = (() => {
     function toBase64(canvasId) {
         const p = pads.get(canvasId);
         if (!p) return null;
-
-        // PdfSharp 6.x's PNG path with alpha was the source of the black
-        // rectangle. JPEG sidesteps the entire alpha-handling story because
-        // JPEG cannot carry an alpha channel at all — every pixel is opaque.
-        // We composite the canvas onto a white-filled offscreen first so the
-        // "background" pixels become pure white instead of canvas-default
-        // transparent black, then export as a high-quality JPEG.
-        const off = document.createElement('canvas');
-        off.width = p.canvas.width;
-        off.height = p.canvas.height;
-        const offCtx = off.getContext('2d');
-
-        // 1. Paint the offscreen canvas pure white.
-        offCtx.fillStyle = '#ffffff';
-        offCtx.fillRect(0, 0, off.width, off.height);
-        // 2. Composite the user's pen strokes on top.
-        offCtx.drawImage(p.canvas, 0, 0);
-
-        // 3. Export as JPEG — guaranteed no alpha, guaranteed PdfSharp-friendly.
-        //    0.92 quality keeps the strokes crisp without doubling the bytes.
-        const dataUrl = off.toDataURL('image/jpeg', 0.92);
+        // v2.1 (#213): the engine's SignatureImageNormalizer now re-encodes
+        // every PNG via SkiaSharp before handing it to PDFsharp, so the v2.0
+        // "white rectangle" workaround (export as JPEG) is no longer needed.
+        // Return the canvas as a real RGBA PNG with the user's drawn strokes
+        // on a transparent background — only the ink shows on the signed PDF.
+        const dataUrl = p.canvas.toDataURL('image/png');
         const comma = dataUrl.indexOf(',');
         return comma >= 0 ? dataUrl.substring(comma + 1) : dataUrl;
     }
