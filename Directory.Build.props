@@ -38,7 +38,7 @@
       to the target stable (e.g. 1.3.0) and add VersionSuffix (e.g. preview.1) so the
       effective package version becomes 1.3.0-preview.1.
     -->
-    <Version>2.1.0</Version>
+    <Version>2.2.0</Version>
 
     <Product>Stampd</Product>
     <Authors>Suresh Subramanian and Stampd contributors</Authors>

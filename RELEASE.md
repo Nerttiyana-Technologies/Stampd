@@ -132,6 +132,41 @@ After yanking, bump `Directory.Build.props` to the next patch (e.g. `2.0.0 → 2
 
 ## Upgrade notes
 
+### Upgrading from v2.1.0 → v2.2.0
+
+v2.2 is a MINOR release — analytics-only, fully additive. No schema changes, no new migrations, no new config flags. Every change is backwards-compatible on the wire: every new field in the analytics responses is nullable, so adopters running an older Stampd.UI against a v2.2 WebApi (or vice versa) see the existing widgets unchanged.
+
+#### 1. Analytics endpoints return prior-window comparison alongside current values
+
+All three `/api/admin/analytics/*` endpoints now run their aggregation twice per call — once for the requested window, once for the equally-sized prior window — and surface both plus a delta. Funnel and identity-verification responses gain `previousWindow` + `deltas` blocks; time-to-sign gains per-template `previousWindow` + `avgMinutesDeltaPercent` + `medianMinutesDeltaPercent` (null when a template is new in the current window).
+
+The second query is index-covered on `(TenantId, CreatedAtUtcEpochMs)` so the marginal cost is sub-millisecond on any realistic data volume. Adopters who don't want the prior-window work can ignore the new fields — the existing ones are unchanged.
+
+#### 2. Identity-verification endpoint gains a per-channel breakdown
+
+`GET /api/admin/analytics/identity-verification` returns a new `byChannel` block with `email` / `sms` / `kba` splits, each carrying `initiatesCount` + `verifiedCount` + `lockedOutCount`. Channel is derived without a schema change:
+
+- **Email / SMS** — classified from `OtpChallenge.Identifier` shape (contains `@` → Email, else SMS).
+- **KBA** — pulled from `Recipient.IdentityVerificationMethod` (KBA bypasses the OTP store entirely). KBA `initiatesCount` is proxied from its verified count since there's no separate attempt log; the UI footnote calls this out.
+
+The `/admin` dashboard renders the breakdown as two small stacked bars under the existing IV tiles, so admins can spot which method is taking brute-force pressure.
+
+#### 3. Funnel endpoint adds a request-weighted completion view
+
+The recipient-level funnel that's been in place since v2.0 stays unchanged — `signed / invited` is still per-recipient and reads correctly for single-signer workflows. v2.2 adds a sibling `requestWeighted` block that computes `signed ÷ recipients` per SigningRequest and averages across requests, so a 2-of-3-signed request contributes 0.67 to the metric instead of 0 or 1. Useful for tenants who run multi-recipient workflows and want a fairer "how far have we gotten" number than the binary "all signed / not all signed" view.
+
+Surfaces `weightedCompletionPercent`, `fullyCompletedRequests`, and a `requestCount` denominator. Prior-window comparison applies here too.
+
+#### 4. Time-to-sign endpoint adds per-role segmentation
+
+`GET /api/admin/analytics/time-to-sign` returns a new `byRole` array alongside the existing per-template `items`. Each row aggregates recipients across all templates by `Recipient.Role.Name` (the template-level role name like "Customer" or "Approver", NOT the RBAC role) and reports avg/median time-to-sign plus prior-window deltas. Recipients without a role (legacy data with null `RoleId`) bucket under `(unassigned)`.
+
+The dashboard renders the per-role table beneath the per-template one. Lets admins answer "do Approvers always take longer than Signers?" at a tenant level instead of digging through individual templates.
+
+#### 5. Per-cell delta semantics in the dashboard
+
+Delta chips use green ▲ for improvements and red ▼ for regressions, but the meaning of "improvement" depends on the metric — higher conversion is good, lower lockout count is good, lower time-to-sign is good. The dashboard's `RenderDeltaPercent` helper carries a `lowerIsBetter` flag for this. No adopter action; mentioned for anyone forking the dashboard.
+
 ### Upgrading from v2.0.0 → v2.1.0
 
 v2.1 is a MINOR release — additive, fully backwards-compatible at the API surface. Two visible changes for adopters: a new EF migration, and a new opt-in TSA failover config flag.
