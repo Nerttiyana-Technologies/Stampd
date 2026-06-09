@@ -24,6 +24,7 @@ using Stampd.Engine;
 using Stampd.Engine.Rendering;
 using Stampd.Identity.EmailOtp;
 using Stampd.Identity.Oidc;
+using Stampd.Identity.Saml2;
 using Stampd.Infrastructure;
 using Stampd.Infrastructure.Identity;
 using Stampd.Infrastructure.Sqlite;
@@ -429,23 +430,32 @@ builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Stampd:
 // in-memory config providers has been flaky across .NET 10 preview builds.
 // Manual string compare is rock-solid and avoids surprises.
 var authModeRaw = builder.Configuration["Stampd:Auth:Mode"];
-var authMode = string.Equals(authModeRaw, "Oidc", StringComparison.OrdinalIgnoreCase)
-    ? Stampd.Identity.Oidc.StampdAuthMode.Oidc
-    : Stampd.Identity.Oidc.StampdAuthMode.DevJwt;
+// v3.0 alpha.3 — third mode 'Saml2' for SAML federation. SAML2 alpha is scaffold
+// only (config + endpoint surface + claim mapper). v3.0.0 stable wires the real
+// ITfoxtec.Identity.Saml2-backed assertion validation.
+var isOidc = string.Equals(authModeRaw, "Oidc", StringComparison.OrdinalIgnoreCase);
+var isSaml2 = string.Equals(authModeRaw, "Saml2", StringComparison.OrdinalIgnoreCase);
 
-if (authMode == Stampd.Identity.Oidc.StampdAuthMode.DevJwt
+if (!isOidc && !isSaml2
     && !builder.Environment.IsDevelopment()
     && builder.Environment.EnvironmentName != "Testing")
 {
     throw new InvalidOperationException(
         "Stampd:Auth:Mode=DevJwt is only allowed in Development. Set Stampd:Auth:Mode=Oidc " +
-        "and configure Stampd:Auth:Oidc:Authority + Audience for production deployments.");
+        "(real-IdP OIDC validation) or Saml2 (SAML2 SP scaffold) for production deployments.");
 }
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer();
 
-if (authMode == Stampd.Identity.Oidc.StampdAuthMode.Oidc)
+if (isSaml2)
+{
+    // v3.0 alpha.3 — register the SAML2 SP scaffold's eager config validation.
+    // Endpoint scaffolds map at app-bootstrap time below.
+    builder.Services.AddStampdSaml2Sp(builder.Configuration.GetSection("Stampd:Auth:Saml2"));
+}
+
+if (isOidc)
 {
     // OIDC relay wires JwtBearer against the external IdP's discovery document
     // and applies Stampd's role-claim mapping at token-validated time. Throws at
@@ -629,6 +639,11 @@ adminGroup.MapAdminOperations();
 adminGroup.MapAdminAnalytics();
 adminGroup.MapAdminAuditExport();
 adminGroup.MapAdminScopes();
+
+// v3.0 alpha.3 — SAML2 endpoint scaffolds. Always mapped (regardless of Mode)
+// so adopters can probe `/api/auth/saml/metadata` to verify reverse-proxy /
+// DNS routing even before flipping Mode=Saml2. Bodies 501 until v3.0.0 stable.
+app.MapStampdSaml2Endpoints();
 
 try
 {

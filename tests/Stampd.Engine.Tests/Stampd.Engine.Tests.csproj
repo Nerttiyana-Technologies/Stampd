@@ -22,6 +22,10 @@
     <ProjectReference Include="..\..\src\Stampd.Crypto.LocalCertificate\Stampd.Crypto.LocalCertificate.csproj" />
     <!-- v3.0 alpha.2 — pure-function tests for the OIDC claim mapper. -->
     <ProjectReference Include="..\..\src\Stampd.Identity.Oidc\Stampd.Identity.Oidc.csproj" />
+    <!-- v3.0 alpha.3 — SAML2 scaffold tests. -->
+    <ProjectReference Include="..\..\src\Stampd.Identity.Saml2\Stampd.Identity.Saml2.csproj" />
+    <!-- v3.0.0 — compliance gate tests. -->
+    <ProjectReference Include="..\..\src\Stampd.Compliance\Stampd.Compliance.csproj" />
   </ItemGroup>
 
   <ItemGroup>
