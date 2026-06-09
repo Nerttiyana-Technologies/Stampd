@@ -10,6 +10,18 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Stampd.WebApi\Stampd.WebApi.csproj" />
+    <!--
+      v3.0 alpha.1 — test fixture holds a SqliteConnection open across the host
+      lifetime so the in-memory database stays alive. Microsoft.Data.Sqlite +
+      EntityFrameworkCore.Sqlite are needed at the test layer for the explicit
+      `new SqliteConnection(...)` and `UseSqlite(connection)` calls.
+    -->
+    <ProjectReference Include="..\..\src\Stampd.Infrastructure.Sqlite\Stampd.Infrastructure.Sqlite.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
   </ItemGroup>
 
   <ItemGroup>

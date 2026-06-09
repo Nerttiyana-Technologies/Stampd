@@ -45,7 +45,7 @@
       Adopters pinned to v2.3.0 stable see no change.
     -->
     <Version>3.0.0</Version>
-    <VersionSuffix>alpha.1</VersionSuffix>
+    <VersionSuffix>alpha.2</VersionSuffix>
 
     <Product>Stampd</Product>
     <Authors>Suresh Subramanian and Stampd contributors</Authors>

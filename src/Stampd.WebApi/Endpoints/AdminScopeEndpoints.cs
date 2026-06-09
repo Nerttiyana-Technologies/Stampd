@@ -163,7 +163,14 @@ internal static class AdminScopeEndpoints
             query = query.Where(s => s.RevokedAtUtc == null);
         }
 
-        var items = await query
+        // SQLite doesn't translate ORDER BY on DateTimeOffset (v1.2 #115 / Doc 16
+        // family). Materialize then order client-side — the volume of scopes per
+        // tenant is bounded (admins are few), so client-side sort is fine.
+        var rows = await query
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var items = rows
             .OrderByDescending(s => s.GrantedAtUtc)
             .Select(s => new
             {
@@ -177,8 +184,7 @@ internal static class AdminScopeEndpoints
                 revocationReason = s.RevocationReason,
                 isActive = s.RevokedAtUtc == null,
             })
-            .ToListAsync(ct)
-            .ConfigureAwait(false);
+            .ToList();
 
         return Results.Ok(new { items });
     }

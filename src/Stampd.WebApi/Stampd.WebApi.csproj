@@ -34,6 +34,7 @@
     <ProjectReference Include="..\Stampd.Revocation.Http\Stampd.Revocation.Http.csproj" />
     <ProjectReference Include="..\Stampd.Email.Smtp\Stampd.Email.Smtp.csproj" />
     <ProjectReference Include="..\Stampd.Identity.EmailOtp\Stampd.Identity.EmailOtp.csproj" />
+    <ProjectReference Include="..\Stampd.Identity.Oidc\Stampd.Identity.Oidc.csproj" />
   </ItemGroup>
 
   <ItemGroup>
