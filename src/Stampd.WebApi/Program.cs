@@ -450,10 +450,21 @@ builder.Services.AddScoped<Stampd.Core.Authorization.ICurrentActorContext,
 // themselves on the appropriate policy (see managementGroup / adminGroup wiring below).
 // Default fallback policy is RequireAuthenticatedUser so any endpoint that forgets to
 // tag a policy still requires a valid JWT — defense-in-depth.
+// v3.0 alpha.1 — register the per-tenant Admin scope handler. The policy itself
+// only carries the Admin scope requirement; the handler walks the AdminScopes
+// table to validate. Scoped registration so each request gets a handler bound to
+// the per-request ICurrentActorContext + ITenantContext.
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
+    Stampd.WebApi.Auth.AdminScopeAuthorizationHandler>();
+
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Stampd.Core.Authorization.StampdRoles.Admin, p => p
         .RequireAuthenticatedUser()
-        .RequireRole(Stampd.Core.Authorization.StampdRoles.Admin))
+        // v3.0 alpha.1: was .RequireRole(Admin). The new requirement checks BOTH
+        // the Admin role claim AND an active AdminScope row for the request's
+        // tenant. The handler enforces both gates so existing role-aware code (UI
+        // nav, dev JWT minter, etc.) doesn't need changes.
+        .AddRequirements(new Stampd.WebApi.Auth.AdminScopeRequirement()))
     .AddPolicy("SenderOrAdmin", p => p
         .RequireAuthenticatedUser()
         .RequireRole(
@@ -583,6 +594,7 @@ adminGroup.MapAdminDashboard();
 adminGroup.MapAdminOperations();
 adminGroup.MapAdminAnalytics();
 adminGroup.MapAdminAuditExport();
+adminGroup.MapAdminScopes();
 
 try
 {

@@ -58,4 +58,19 @@ public interface ICurrentActorContext
     /// Avoids string comparison at every call-site.
     /// </summary>
     bool IsAdmin { get; }
+
+    /// <summary>
+    /// v3.0 alpha.1 — the set of TenantIds where the current user holds an active
+    /// (non-revoked) Admin scope assignment. Empty set for users with no admin
+    /// grants; one-element set for typical single-tenant deployments. The auth
+    /// handler reads this to decide whether the current request's tenant is in the
+    /// scope set.
+    /// </summary>
+    /// <remarks>
+    /// Async because the implementation reads from the AdminScopes table. The
+    /// WebApi impl caches the result per-request so repeated calls in one request
+    /// don't re-query. Returns an empty collection (not null) when there's no
+    /// authenticated user.
+    /// </remarks>
+    ValueTask<IReadOnlyCollection<Guid>> GetAdminScopedTenantIdsAsync(CancellationToken ct);
 }
