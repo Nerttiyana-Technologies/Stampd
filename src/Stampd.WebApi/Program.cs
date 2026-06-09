@@ -23,6 +23,7 @@ using Stampd.Email.Smtp;
 using Stampd.Engine;
 using Stampd.Engine.Rendering;
 using Stampd.Identity.EmailOtp;
+using Stampd.Identity.Oidc;
 using Stampd.Infrastructure;
 using Stampd.Infrastructure.Identity;
 using Stampd.Infrastructure.Sqlite;
@@ -418,25 +419,58 @@ builder.Services.AddHealthChecks()
 // resolve-time via IOptionsMonitor<JwtOptions>, so it sees the final, fully-merged config.
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Stampd:Auth:Jwt"));
 
+// v3.0 alpha.2 — auth-mode selector. DevJwt mode keeps v2.x behavior (in-process
+// signing + dev token endpoint). Oidc mode hands JwtBearer over to an external
+// IdP via Stampd.Identity.Oidc.AddStampdOidcRelay. Default is DevJwt to preserve
+// existing local dev flows; production deployments MUST opt into Oidc and the
+// guard below throws if they don't.
+//
+// Read as a string then case-insensitive parse — GetValue<TEnum> binding for
+// in-memory config providers has been flaky across .NET 10 preview builds.
+// Manual string compare is rock-solid and avoids surprises.
+var authModeRaw = builder.Configuration["Stampd:Auth:Mode"];
+var authMode = string.Equals(authModeRaw, "Oidc", StringComparison.OrdinalIgnoreCase)
+    ? Stampd.Identity.Oidc.StampdAuthMode.Oidc
+    : Stampd.Identity.Oidc.StampdAuthMode.DevJwt;
+
+if (authMode == Stampd.Identity.Oidc.StampdAuthMode.DevJwt
+    && !builder.Environment.IsDevelopment()
+    && builder.Environment.EnvironmentName != "Testing")
+{
+    throw new InvalidOperationException(
+        "Stampd:Auth:Mode=DevJwt is only allowed in Development. Set Stampd:Auth:Mode=Oidc " +
+        "and configure Stampd:Auth:Oidc:Authority + Audience for production deployments.");
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer();
 
-builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-    .Configure<IOptionsMonitor<JwtOptions>>((bearerOptions, jwtMonitor) =>
-    {
-        var jwt = jwtMonitor.CurrentValue;
-        bearerOptions.TokenValidationParameters = new TokenValidationParameters
+if (authMode == Stampd.Identity.Oidc.StampdAuthMode.Oidc)
+{
+    // OIDC relay wires JwtBearer against the external IdP's discovery document
+    // and applies Stampd's role-claim mapping at token-validated time. Throws at
+    // startup if Authority/Audience are missing.
+    builder.Services.AddStampdOidcRelay(builder.Configuration.GetSection("Stampd:Auth:Oidc"));
+}
+else
+{
+    builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+        .Configure<IOptionsMonitor<JwtOptions>>((bearerOptions, jwtMonitor) =>
         {
-            ValidIssuer = jwt.Issuer,
-            ValidAudience = jwt.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ClockSkew = TimeSpan.FromMinutes(2),
-        };
-    });
+            var jwt = jwtMonitor.CurrentValue;
+            bearerOptions.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidIssuer = jwt.Issuer,
+                ValidAudience = jwt.Audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ClockSkew = TimeSpan.FromMinutes(2),
+            };
+        });
+}
 
 // v2.0 Slice D — server-side actor context for audit attribution. Scoped so each
 // HTTP request gets a fresh read of HttpContext.User. Background workers and tests

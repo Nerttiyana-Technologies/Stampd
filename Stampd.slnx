@@ -19,6 +19,7 @@
     <Project Path="src/Stampd.Revocation.Http/Stampd.Revocation.Http.csproj" />
     <Project Path="src/Stampd.Email.Smtp/Stampd.Email.Smtp.csproj" />
     <Project Path="src/Stampd.Identity.EmailOtp/Stampd.Identity.EmailOtp.csproj" />
+    <Project Path="src/Stampd.Identity.Oidc/Stampd.Identity.Oidc.csproj" />
     <Project Path="src/Stampd.Identity.SmsOtp/Stampd.Identity.SmsOtp.csproj" />
     <Project Path="src/Stampd.Identity.Kba/Stampd.Identity.Kba.csproj" />
     <Project Path="src/Stampd.WebApi/Stampd.WebApi.csproj" />

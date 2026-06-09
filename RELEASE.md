@@ -132,6 +132,60 @@ After yanking, bump `Directory.Build.props` to the next patch (e.g. `2.0.0 → 2
 
 ## Upgrade notes
 
+### Upgrading from v3.0.0-alpha.1 → v3.0.0-alpha.2
+
+alpha.2 adds the OIDC relay — JWT validation against any external OpenID Connect IdP. No schema changes; pure config + DI surface additions.
+
+#### 1. New `Stampd.Identity.Oidc` NuGet package
+
+Wraps Microsoft's `JwtBearer` middleware for the external-IdP-validation case. Pulled in transitively by `Stampd.WebApi` so adopters using the WebApi don't need to add it explicitly.
+
+#### 2. New config key `Stampd:Auth:Mode`
+
+```jsonc
+{
+  "Stampd": {
+    "Auth": {
+      "Mode": "DevJwt",  // or "Oidc"
+      // ...existing Jwt + SuperAdminUserIds sections...
+      "Oidc": {
+        "Authority": "https://example.auth0.com/",
+        "Audience": "https://api.stampd.example.com",
+        "RoleClaim": "groups",
+        "RoleClaimMappings": {
+          "stampd-admins": "Admin",
+          "stampd-senders": "Sender"
+        },
+        "TenantClaim": "tenant_id",
+        "RequireTenantClaim": false
+      }
+    }
+  }
+}
+```
+
+Default is `DevJwt` to preserve v3.0.0-alpha.1 behavior. Adopters not setting the key see no change.
+
+#### 3. Production guard on `DevJwt` mode
+
+If `Stampd:Auth:Mode=DevJwt` AND `ASPNETCORE_ENVIRONMENT != Development` (and != Testing), Stampd.WebApi now throws at startup with a clear error pointing at the Oidc mode. v2.x deployments inadvertently leaving the dev minter enabled in Production will fail loud instead of silently accepting dev-minted tokens.
+
+#### 4. Role claim mapping is explicit-opt-in
+
+External groups not listed in `Stampd:Auth:Oidc:RoleClaimMappings` are silently dropped — no implicit "all groups become roles" surface. Adopters must enumerate the group→role pairings they want.
+
+#### 5. Tenant claim — opt-in tenant binding
+
+If the IdP issues a tenant claim, `Stampd:Auth:Oidc:TenantClaim` configures which claim to read. The value is used by the v3.0 auth gates for per-tenant scope decisions. Set `Stampd:Auth:Oidc:RequireTenantClaim=true` to make missing tenant a 401.
+
+NOT YET WIRED in alpha.2: automatic AdminScope insertion on first sign-in. Plumbing in place, behavior deferred to alpha.3.
+
+#### 6. NOT in alpha.2
+
+- SAML2 SP mode — alpha.3.
+- UI changes — Blazor's dev login flow stays unchanged in Development.
+- Live JWKS round-trip integration test — adopters validate with their own IdP. Unit tests cover claim translation; integration tests cover wiring + config validation.
+
 ### Upgrading from v2.3.0 → v3.0.0-alpha.1
 
 v3.0 ships as a series of pre-release alphas before the stable tag. **alpha.1 is opt-in only** — `dotnet add package Stampd.* --prerelease --version 3.0.0-alpha.1`. v2.3 stable remains the recommendation for production until v3.0.0 stable lands.

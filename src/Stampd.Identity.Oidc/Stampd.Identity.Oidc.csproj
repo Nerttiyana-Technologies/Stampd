@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Stampd.Identity.Oidc</PackageId>
+    <Description>v3.0 alpha.2 — OIDC relay. Validates external JWTs from any OpenID Connect IdP (Auth0, Okta, Azure AD, Google, Keycloak, …) via JWKS, maps claims to Stampd's role + scope model. Replaces the dev JWT minter for production deployments.</Description>
+    <PackageTags>stampd;identity;oidc;openid-connect;sso;jwt</PackageTags>
+    <RootNamespace>Stampd.Identity.Oidc</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.8" />
+    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.300" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

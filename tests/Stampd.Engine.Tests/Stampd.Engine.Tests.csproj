@@ -20,6 +20,8 @@
     <ProjectReference Include="..\..\src\Stampd.Core\Stampd.Core.csproj" />
     <ProjectReference Include="..\..\src\Stampd.Engine\Stampd.Engine.csproj" />
     <ProjectReference Include="..\..\src\Stampd.Crypto.LocalCertificate\Stampd.Crypto.LocalCertificate.csproj" />
+    <!-- v3.0 alpha.2 — pure-function tests for the OIDC claim mapper. -->
+    <ProjectReference Include="..\..\src\Stampd.Identity.Oidc\Stampd.Identity.Oidc.csproj" />
   </ItemGroup>
 
   <ItemGroup>
