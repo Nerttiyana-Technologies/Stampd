@@ -158,55 +158,60 @@ Env-var form: `Stampd__Email__Smtp__Host`, `Stampd__Email__Smtp__Port`, etc.
 
 ## Feature matrix
 
-| Capability | v1.0 | v1.1 | v1.2 | v1.3 | v2.0 | v2.1 | v2.2 | v2.3 (current) |
-|---|---|---|---|---|---|---|---|---|
-| PAdES B-B (basic) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| PAdES B-T (RFC 3161 timestamp) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| PAdES B-LT (CRL + OCSP via DSS) | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| PAdES B-LTA (archive timestamp) | — | — | ✅ | ✅ † | ✅ † | ✅ † | ✅ † | ✅ † |
-| Strict ETSI ATSHashIndexV3 imprint | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ |
-| PAdES Document Timestamp (`/Type /DocTimeStamp`) | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Local certificate sealing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| HashiCorp Vault / OpenBao Transit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Azure Key Vault | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| AWS KMS | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Configurable RFC 3161 TSA (DigiCert / GlobalSign / Sectigo / internal) | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Opt-in DigiCert TSA failover (resilience for FreeTSA outages) | — | — | — | — | — | ✅ | ✅ | ✅ |
-| SQL Server / Postgres / SQLite | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| S3 / Azure Blob / GCS storage | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Email-driven workflow dispatch | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Persistent OTP store (DB-backed) | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| SMS OTP + KBA identity verification | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| OTP rate limit + brute-force lockout | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Webhook outbox with HMAC delivery | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Bulk-send worker | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Multi-recipient field aggregation | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Multi-recipient sender detail page | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Sender completion notification email | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Blazor signer experience | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Blazor template designer | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Identity-verification UI gates | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Drag-to-move + resize handles in designer | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Transparent signature rendering (PNG alpha through PdfSharp) | — | — | — | — | — | ✅ | ✅ | ✅ |
-| True PDF incremental update for strict ETSI B-LT | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Paginated signing-requests list (UI + API) | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ |
-| RBAC: Admin / Sender / ReadOnly roles + policies | — | — | — | — | ✅ | ✅ | ✅ | ✅ |
-| Admin dashboard at `/admin` (summary + 30-day trend + top templates) | — | — | — | — | ✅ | ✅ | ✅ | ✅ |
-| Drop-off funnel + time-to-sign + identity-verification analytics | — | — | — | — | ✅ | ✅ | ✅ | ✅ |
-| Prior-window comparison on every analytics widget (▲/▼ deltas) | — | — | — | — | — | — | ✅ | ✅ |
-| Per-channel identity-verification breakdown (Email / SMS / KBA) | — | — | — | — | — | — | ✅ | ✅ |
-| Request-weighted funnel completion (multi-recipient fairness) | — | — | — | — | — | — | ✅ | ✅ |
-| Per-role time-to-sign segmentation (tenant-wide across templates) | — | — | — | — | — | — | ✅ | ✅ |
-| Weekday vs weekend funnel split (dispatch-time conversion gap) | — | — | — | — | — | — | — | ✅ |
-| Webhook delivery retry observability widget | — | — | — | — | — | — | — | ✅ |
-| Per-sender productivity dashboard | — | — | — | — | — | — | — | ✅ |
-| Audit-trail CSV export (streamed) | — | — | — | — | — | — | — | ✅ |
-| Signing-requests filters (status / sender / recipient / date) + sort | — | — | — | — | ✅ | ✅ | ✅ | ✅ |
-| Strict completed-date sort (V15 `CompletedAtUtcEpochMs` shadow column) | — | — | — | — | — | ✅ | ✅ | ✅ |
-| Shareable + back-button-safe filter URLs (query-string sync) | — | — | — | — | — | ✅ | ✅ | ✅ |
-| Admin bulk operations: void, resend invitation, demo cleanup | — | — | — | — | ✅ | ✅ | ✅ | ✅ |
-| Audit attribution (`ActorUserId` + `ActorRole` on every event) | — | — | — | — | ✅ | ✅ | ✅ | ✅ |
-| Theme persistence across navigation (light / dark) | — | — | — | — | ✅ | ✅ | ✅ | ✅ |
+| Capability | v1.0 | v1.1 | v1.2 | v1.3 | v2.0 | v2.1 | v2.2 | v2.3 | v3.0 (current) |
+|---|---|---|---|---|---|---|---|---|---|
+| PAdES B-B (basic) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| PAdES B-T (RFC 3161 timestamp) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| PAdES B-LT (CRL + OCSP via DSS) | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| PAdES B-LTA (archive timestamp) | — | — | ✅ | ✅ † | ✅ † | ✅ † | ✅ † | ✅ † | ✅ † |
+| Strict ETSI ATSHashIndexV3 imprint | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| PAdES Document Timestamp (`/Type /DocTimeStamp`) | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Local certificate sealing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| HashiCorp Vault / OpenBao Transit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Azure Key Vault | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| AWS KMS | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Configurable RFC 3161 TSA (DigiCert / GlobalSign / Sectigo / internal) | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Opt-in DigiCert TSA failover (resilience for FreeTSA outages) | — | — | — | — | — | ✅ | ✅ | ✅ | ✅ |
+| SQL Server / Postgres / SQLite | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| S3 / Azure Blob / GCS storage | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Email-driven workflow dispatch | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Persistent OTP store (DB-backed) | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| SMS OTP + KBA identity verification | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| OTP rate limit + brute-force lockout | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Webhook outbox with HMAC delivery | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Bulk-send worker | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Multi-recipient field aggregation | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Multi-recipient sender detail page | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Sender completion notification email | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Blazor signer experience | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Blazor template designer | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Identity-verification UI gates | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Drag-to-move + resize handles in designer | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Transparent signature rendering (PNG alpha through PdfSharp) | — | — | — | — | — | ✅ | ✅ | ✅ | ✅ |
+| True PDF incremental update for strict ETSI B-LT | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Paginated signing-requests list (UI + API) | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| RBAC: Admin / Sender / ReadOnly roles + policies | — | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Tenant-isolated admin scopes (`AdminScopes` + per-tenant gate) | — | — | — | — | — | — | — | — | ✅ |
+| Real OIDC relay (Auth0 / Okta / Azure AD / Google / Keycloak) | — | — | — | — | — | — | — | — | ✅ |
+| SAML2 SP scaffolding (config + endpoint surface; impl in v3.0.1) | — | — | — | — | — | — | — | — | ✅ |
+| Industry compliance bundles (HIPAA / 21 CFR Part 11 / eIDAS QES) | — | — | — | — | — | — | — | — | ✅ |
+| Production guard: `Mode=DevJwt` blocked outside Development | — | — | — | — | — | — | — | — | ✅ |
+| Admin dashboard at `/admin` (summary + 30-day trend + top templates) | — | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Drop-off funnel + time-to-sign + identity-verification analytics | — | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Prior-window comparison on every analytics widget (▲/▼ deltas) | — | — | — | — | — | — | ✅ | ✅ | ✅ |
+| Per-channel identity-verification breakdown (Email / SMS / KBA) | — | — | — | — | — | — | ✅ | ✅ | ✅ |
+| Request-weighted funnel completion (multi-recipient fairness) | — | — | — | — | — | — | ✅ | ✅ | ✅ |
+| Per-role time-to-sign segmentation (tenant-wide across templates) | — | — | — | — | — | — | ✅ | ✅ | ✅ |
+| Weekday vs weekend funnel split (dispatch-time conversion gap) | — | — | — | — | — | — | — | ✅ | ✅ |
+| Webhook delivery retry observability widget | — | — | — | — | — | — | — | ✅ | ✅ |
+| Per-sender productivity dashboard | — | — | — | — | — | — | — | ✅ | ✅ |
+| Audit-trail CSV export (streamed) | — | — | — | — | — | — | — | ✅ | ✅ |
+| Signing-requests filters (status / sender / recipient / date) + sort | — | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Strict completed-date sort (V15 `CompletedAtUtcEpochMs` shadow column) | — | — | — | — | — | ✅ | ✅ | ✅ | ✅ |
+| Shareable + back-button-safe filter URLs (query-string sync) | — | — | — | — | — | ✅ | ✅ | ✅ | ✅ |
+| Admin bulk operations: void, resend invitation, demo cleanup | — | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Audit attribution (`ActorUserId` + `ActorRole` on every event) | — | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Theme persistence across navigation (light / dark) | — | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 † **B-LTA carrier — belt + suspenders.** Stampd emits BOTH long-term archive carriers for B-LTA, so adopters get maximum verifier interop:
 >
