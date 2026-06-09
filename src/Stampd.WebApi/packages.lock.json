@@ -833,6 +833,13 @@
           "Stampd.Core": "[3.0.0, )"
         }
       },
+      "stampd.identity.saml2": {
+        "type": "Project",
+        "dependencies": {
+          "Stampd.Core": "[3.0.0, )",
+          "Stampd.Identity.Oidc": "[3.0.0, )"
+        }
+      },
       "stampd.infrastructure": {
         "type": "Project",
         "dependencies": {

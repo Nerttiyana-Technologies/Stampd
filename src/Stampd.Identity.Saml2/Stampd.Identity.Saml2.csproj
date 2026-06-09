@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Stampd.Identity.Saml2</PackageId>
+    <Description>v3.0 alpha.3 — SAML2 Service Provider scaffolding. Config DTO, claim mapper, endpoint surface, and DI wiring for SAML2 federation against enterprise IdPs (Okta, Azure AD, Ping, ADFS). Production wiring (assertion signature verification, replay cache, encryption) lands in v3.0.0 stable.</Description>
+    <PackageTags>stampd;identity;saml2;sso;federation</PackageTags>
+    <RootNamespace>Stampd.Identity.Saml2</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stampd.Core\Stampd.Core.csproj" />
+    <!--
+      Shared StampdAuthMode enum + claim-translation pattern. Saml2's mapper
+      is structurally identical to OIDC's (groups → Stampd roles + tenant
+      claim → Guid). Reusing the existing project avoids a circular dependency
+      and keeps the public surface small.
+    -->
+    <ProjectReference Include="..\Stampd.Identity.Oidc\Stampd.Identity.Oidc.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      v3.0.0 — scaffold ships with no auth dependency. The 501 endpoint stubs
+      need only the framework's Http abstractions. Real SAML2 wiring in v3.0.1
+      adds whatever XML / auth dependencies it needs (ITfoxtec.Identity.Saml2
+      or hand-rolled XMLDSig). We avoid the legacy .NET Framework
+      Microsoft.AspNetCore.Authentication.Cookies 2.x package because it drags
+      in a vulnerable System.Security.Cryptography.Xml 8.0.2 transitively.
+
+      Microsoft.AspNetCore.App framework reference brings the DI abstractions,
+      options binder, and configuration extensions in-box — separate package
+      references for those would be redundant (NU1510).
+    -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.300" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

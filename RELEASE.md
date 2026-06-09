@@ -132,6 +132,17 @@ After yanking, bump `Directory.Build.props` to the next patch (e.g. `2.0.0 → 2
 
 ## Upgrade notes
 
+### Upgrading from v3.0.0-alpha.2 → v3.0.0
+
+v3.0.0 stable. Closes out the v3.0 train with SAML2 SP scaffolding + industry compliance bundles. Detailed v2.x → v3.0.0 upgrade path lives in [`MIGRATION.md`](MIGRATION.md) — adopters skipping the alpha cycle should read that document.
+
+What landed:
+
+- **`Stampd.Identity.Saml2`** (new package) — SAML2 SP scaffold. `Stampd:Auth:Mode=Saml2` recognized; endpoints `/api/auth/saml/{metadata,login,acs}` mapped (501 until v3.0.1). Eager config validation runs at startup.
+- **`Stampd.Compliance`** (new package) — `ComplianceBundle` enum (Hipaa / Cfr21Part11 / EidasQes / None), `ComplianceLevels` preset constants, runtime `IComplianceGate` that validates signature level + IV + QES requirements.
+- **Production guard extended** — DevJwt mode now blocked unless explicitly Development or Testing, regardless of whether OIDC or SAML2 is the production target.
+- **Workflow rules engine moved to v3.1 candidates** — the rules DSL + designer UI + V18 migration didn't fit in the v3.0 train without compromising quality. Lands in v3.1 as the headline feature.
+
 ### Upgrading from v3.0.0-alpha.1 → v3.0.0-alpha.2
 
 alpha.2 adds the OIDC relay — JWT validation against any external OpenID Connect IdP. No schema changes; pure config + DI surface additions.

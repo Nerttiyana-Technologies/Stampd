@@ -39,12 +39,12 @@
       effective package version becomes 1.3.0-preview.1.
     -->
     <!--
-      v3.0 alpha cycle. Full pre-release version goes in Version so the release
-      workflow's tag-vs-Version assertion (which only reads Version) matches the
-      Git tag exactly. Bumping format is "3.0.0-alpha.N" — increment N each alpha,
-      drop the suffix entirely when v3.0.0 stable ships.
+      v3.0.0 stable. v3.0 train shipped four pieces: tenant-isolated admin scopes
+      (alpha.1), OIDC relay for external IdPs (alpha.2), SAML2 SP scaffolding
+      (alpha.3), and industry compliance bundles (this release). Rules engine
+      moved to v3.1 candidates.
     -->
-    <Version>3.0.0-alpha.2</Version>
+    <Version>3.0.0</Version>
 
     <Product>Stampd</Product>
     <Authors>Suresh Subramanian and Stampd contributors</Authors>
