@@ -132,6 +132,48 @@ After yanking, bump `Directory.Build.props` to the next patch (e.g. `2.0.0 → 2
 
 ## Upgrade notes
 
+### Upgrading from v2.3.0 → v3.0.0-alpha.1
+
+v3.0 ships as a series of pre-release alphas before the stable tag. **alpha.1 is opt-in only** — `dotnet add package Stampd.* --prerelease --version 3.0.0-alpha.1`. v2.3 stable remains the recommendation for production until v3.0.0 stable lands.
+
+v3.0 is a MAJOR release. Read [`internal/implementation/34-v30-plan.md`](internal/implementation/34-v30-plan.md) for the full v3.0 sequence (alpha.1 → alpha.4 → stable) and stop-points if you want to track partial v3 progress.
+
+#### 1. Apply V16 migration on every provider
+
+Adds the `AdminScopes` table with composite `(UserId, TenantId)` and `(TenantId)` indexes. No backfill — first-run admins must be granted scope explicitly (via the new endpoints) or listed in the `Stampd:Auth:SuperAdminUserIds` bootstrap config.
+
+```bash
+dotnet ef database update --project src/Stampd.Infrastructure.Sqlite    --startup-project src/Stampd.WebApi
+dotnet ef database update --project src/Stampd.Infrastructure.SqlServer --startup-project src/Stampd.WebApi
+dotnet ef database update --project src/Stampd.Infrastructure.Postgres  --startup-project src/Stampd.WebApi
+```
+
+#### 2. Per-tenant admin enforcement is now live
+
+The `Admin` authorization policy gained a second gate. Beyond carrying the `role: Admin` JWT claim, the caller must also hold an active `AdminScope` row for the current request's tenant. Without one, `/api/admin/*` endpoints return 403.
+
+**Two friction-free upgrade paths**:
+
+- **Quick**: set `Stampd:Auth:SuperAdminUserIds` to a comma-separated list of your existing admin JWT `sub` values. These users bypass per-tenant scope checks. Use as bootstrap; tighten later.
+- **Proper RBAC**: insert `AdminScopes` rows for each admin/tenant pair via the new `POST /api/admin/scopes` endpoint. Requires at least one super-admin to grant the first scopes.
+
+#### 3. New endpoints under `/api/admin/scopes`
+
+- `POST /api/admin/scopes` — grant. Body: `{ "userId": "..." }`. Tenant comes from the request context.
+- `DELETE /api/admin/scopes/{id}` — revoke. Body: `{ "reason": "..." }` (optional).
+- `GET /api/admin/scopes?activeOnly=true` — list, optionally filtered to active only.
+
+All three require the new `Admin` policy and the super-admin override if you're crossing tenant boundaries.
+
+#### 4. New config key `Stampd:Auth:SuperAdminUserIds`
+
+Comma-separated JWT `sub` values that bypass scope checks. Default empty (no super-admins). Adopters who don't set it need to bootstrap via raw DB inserts on the AdminScopes table.
+
+#### 5. NOT in alpha.1
+
+- No UI for grant / revoke / list. Power users hit the API directly. UI lands in a later alpha or v3.0.0 stable.
+- No cross-tenant scope migration tool. If you have multi-tenant data, write a seed script.
+
 ### Upgrading from v2.2.0 → v2.3.0
 
 v2.3 is a MINOR release. Two new endpoints (`/api/admin/analytics/webhooks-health`, `/api/admin/analytics/by-sender`), one new endpoint file (`AdminAuditExportEndpoints` with `GET /api/admin/audit/export`), and one additive field on the funnel response (`byDayBucket`). Zero schema changes, zero new migrations, zero new config knobs required.

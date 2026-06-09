@@ -35,6 +35,14 @@ public class StampdDbContext : DbContext
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
 
     /// <summary>
+    /// v3.0 alpha.1 — per-tenant Admin assignments. Deliberately NOT tenant-filtered:
+    /// the authorization handler needs to read scopes across the tenant boundary to
+    /// decide whether the current request's tenant is in the user's scope set, and
+    /// MSP-style deployments support one user holding admin on multiple tenants.
+    /// </summary>
+    public DbSet<AdminScope> AdminScopes => Set<AdminScope>();
+
+    /// <summary>
     /// Resolves the tenant id used by every global query filter. Lifted to a method so
     /// EF Core's query translator can call it per-query rather than capturing a constant.
     /// </summary>
@@ -252,6 +260,29 @@ public class StampdDbContext : DbContext
                     // epoch shadow in sync on both Added and Modified.
                     delivery.NextAttemptAtUtcEpochMs = delivery.NextAttemptAtUtc.ToUnixTimeMilliseconds();
 
+                    break;
+
+                case AdminScope scope:
+                    // v3.0 alpha.1. Append-only by intent: an existing row's RevokedAtUtc
+                    // can flip from null to a value (the revoke flow), but no other field
+                    // is permitted to mutate. We don't enforce that strictly here — the
+                    // surface is admin-only and abuse-resistant by policy — but the
+                    // concurrency token still guards against concurrent revoke + re-grant
+                    // races.
+                    if (entry.State == EntityState.Added)
+                    {
+                        if (scope.Id == Guid.Empty)
+                        {
+                            scope.Id = Guid.NewGuid();
+                        }
+
+                        if (scope.GrantedAtUtc == default)
+                        {
+                            scope.GrantedAtUtc = now;
+                        }
+                    }
+
+                    scope.ConcurrencyToken = Guid.NewGuid();
                     break;
 
                 case SignedDocumentRecord signed:
