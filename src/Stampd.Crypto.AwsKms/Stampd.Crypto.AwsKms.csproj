@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="AWSSDK.KeyManagementService" Version="4.0.12.2" />
+    <PackageReference Include="AWSSDK.KeyManagementService" Version="4.0.12.8" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.8" />
     <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.300" />
