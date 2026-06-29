@@ -75,7 +75,7 @@
          1.13.x is the patched line. EntityFrameworkCore instrumentation tracks the core trace
          release within a minor of the OTel API. -->
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.16.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
     <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.13.0-beta.1" />
     <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.15.3" />
