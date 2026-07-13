@@ -4,11 +4,11 @@
     "net10.0": {
       "AWSSDK.KeyManagementService": {
         "type": "Direct",
-        "requested": "[4.0.12.2, )",
-        "resolved": "4.0.12.2",
-        "contentHash": "4aqjH3dqxcFH9fPL0ZTVXn6bbhjowA4dZGXDDeedO/wOfrdUgo8GQfWTCij5hp2hDYNLqqj/eIh6eSxZWXSqxg==",
+        "requested": "[4.0.100.3, )",
+        "resolved": "4.0.100.3",
+        "contentHash": "6eiQtupkVUr5JXiG5j5pllphqtVKjFeU6bEijvvTsdYfJ344zLwh4QMPv3C7fcjDnw3ABlyGjwLjkTqWQ3gEuA==",
         "dependencies": {
-          "AWSSDK.Core": "[4.0.8, 5.0.0)"
+          "AWSSDK.Core": "[4.0.100.3, 5.0.0)"
         }
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
@@ -40,8 +40,8 @@
       },
       "AWSSDK.Core": {
         "type": "Transitive",
-        "resolved": "4.0.8",
-        "contentHash": "JFq4sdtnlLePkISe5M0j1a5ushTrvwCGO1CNOGZaoBv33dscHls14m5dsPzyrN54xn924MtAP+s5xTdfNGNTUQ=="
+        "resolved": "4.0.100.3",
+        "contentHash": "KU+8IlwHqh68J82FXvsNgehAuG0Z++Ul62oD5sg5Iyj4RgSdUKer3nbLBJbW31DAM7mgEuckhsEcJW+2wYpSVA=="
       },
       "Microsoft.Build.Tasks.Git": {
         "type": "Transitive",
