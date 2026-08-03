@@ -32,8 +32,9 @@
       `dotnet add package Microsoft.FluentUI.AspNetCore.Components` to pick the actual
       latest the feed has.
     -->
-    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.14.2" />
-    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.14.2" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.14.4" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.14.4" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
 
     <!--

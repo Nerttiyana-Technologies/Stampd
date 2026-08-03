@@ -27,6 +27,8 @@
       PDFsharp 6.x because it has first-class digital signature support since 6.1.
       Update PRD §7 once the spike confirms this is the right call.
     -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
     <PackageReference Include="PDFsharp" Version="6.2.*" />
 
     <!--
@@ -53,7 +55,7 @@
       native runtime as well.
     -->
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
-    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.300" />
+    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.301" />
   </ItemGroup>
 
   <ItemGroup>
