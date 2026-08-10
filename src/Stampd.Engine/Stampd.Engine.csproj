@@ -35,7 +35,7 @@
       can sign, but PAdES requires specific signed attributes (ESS signing-certificate-v2,
       content-type-OID, message-digest) that BouncyCastle exposes more directly.
     -->
-    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
 
     <!--
       SkiaSharp (MIT) is referenced for image decoding in the stamper. PDFsharp can embed
