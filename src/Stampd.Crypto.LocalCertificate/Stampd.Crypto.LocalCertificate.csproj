@@ -21,7 +21,7 @@
       verifier flagged the resulting CMS as invalid. Routing through BouncyCastle's
       RsaDigestSigner restores parity with the proven-working spike output.
     -->
-    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.300" />
   </ItemGroup>
 
