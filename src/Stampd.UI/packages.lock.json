@@ -13,23 +13,23 @@
       },
       "Microsoft.AspNetCore.App.Internal.Assets": {
         "type": "Direct",
-        "requested": "[10.0.8, )",
-        "resolved": "10.0.8",
-        "contentHash": "v6KocthydFtUHBIRI29YsOHKOgsqcQubkNywVOxiYr4GSDSv+XO/AeyMJywlX+1tGUTGdydu/X7V+Tzeq4SsoA=="
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "tYYYBZsuF2DSz1I3hcfB8qC4nNekIKufkYZOJ2R28fNK3PkS7fJao/mIX5H84NH94UACZQ4dhvt8GDlkrJFwLg=="
       },
       "Microsoft.FluentUI.AspNetCore.Components": {
         "type": "Direct",
-        "requested": "[4.14.2, )",
-        "resolved": "4.14.2",
-        "contentHash": "44BD8rBXH4sTeGPcE7YrA8GC1x5AtAOfGz764itUILs53TAX3n+hQqCJkHCWDYZxvEq/3PPM5YClhb6BrAxhSg=="
+        "requested": "[4.14.4, )",
+        "resolved": "4.14.4",
+        "contentHash": "isJiT1YGAr6xUaVsfB/sfAFs69HDj3JMTn7pwi26/PUF2iOn8J+fjwSOHOVZ2+AhmA9f/OYLdRadjQBav9nJww=="
       },
       "Microsoft.FluentUI.AspNetCore.Components.Icons": {
         "type": "Direct",
-        "requested": "[4.14.2, )",
-        "resolved": "4.14.2",
-        "contentHash": "Ke1WC+g1eY6sZ/g/G9b7ZzKY8WjjvTXtPfdXKeAyIr2xvFjLqYRzK67MB7dDIl9h+unSTUcGjq9KD5NW9R0xyw==",
+        "requested": "[4.14.4, )",
+        "resolved": "4.14.4",
+        "contentHash": "QQ6Vq8i2oItidPBiVk3uKzAouuZV6I9UWhuvxzF1XHz2nOgs7psrDryMf84vLupIWpJ/zswr3+ysxbdBLFlPGQ==",
         "dependencies": {
-          "Microsoft.FluentUI.AspNetCore.Components": "4.14.0"
+          "Microsoft.FluentUI.AspNetCore.Components": "4.14.2"
         }
       },
       "Serilog.AspNetCore": {
