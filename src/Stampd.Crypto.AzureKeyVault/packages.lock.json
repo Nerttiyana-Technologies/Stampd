@@ -13,18 +13,18 @@
       },
       "Azure.Security.KeyVault.Certificates": {
         "type": "Direct",
-        "requested": "[4.9.0, )",
-        "resolved": "4.9.0",
-        "contentHash": "oyUtPpzdqB5o2TL83oL/K/I7yEGeTVF+nmhSH5Dysd5VxoFFMULi7OWZCix206jAr3aMfndWdmya+nmDvgwkrA==",
+        "requested": "[4.9.1, )",
+        "resolved": "4.9.1",
+        "contentHash": "WOnOJuJlchi708rjedYYXI1CBbNBfUjzqHDa6777EiCnKLhiWTnxfvCMHSjT3THDZFRaby4CRMrOPsIvaeSIoQ==",
         "dependencies": {
           "Azure.Core": "1.57.0"
         }
       },
       "Azure.Security.KeyVault.Keys": {
         "type": "Direct",
-        "requested": "[4.10.0, )",
-        "resolved": "4.10.0",
-        "contentHash": "R5iW7mH0EXdl3wqLQ7qglFQXl5JPGmmYXxDxKFT/TraCw6yRhlt5/G3NCc0Wb98P2P3lRZEI8lqF3BY0m9RkNA==",
+        "requested": "[4.10.1, )",
+        "resolved": "4.10.1",
+        "contentHash": "RAFXuB5dWDTrfU5kw/uLH9IMeW7wL2ZgpR6sBcZZ/jJ0LOuKQ+ScEy2S8KeTr+BWnDIyIHtLLDPzEAPtbBZf5w==",
         "dependencies": {
           "Azure.Core": "1.54.0"
         }
