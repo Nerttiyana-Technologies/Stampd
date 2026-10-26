@@ -26,8 +26,8 @@ It does not have a production-grade open-source e-signature platform.
 
 Today, every .NET shop that needs to embed signing in a product faces the same three bad options:
 
-1. **Pay DocuSign per envelope** — $0.50–$5 per signed PDF. Scales linearly with your customers.
-2. **Integrate something written in another stack** — DocuSeal (Ruby) and Documenso (TypeScript) are excellent, but neither is in your language, your package manager, or your tooling.
+1. **Pay a hosted service per envelope** — the cost scales linearly with your customers.
+2. **Integrate something written in another stack** — the open-source platforms are excellent, but they are written in Ruby or TypeScript: not your language, your package manager, or your tooling.
 3. **Build it yourself from scratch** — months of PAdES, ASN.1, CMS, and BouncyCastle to get to a green check in Adobe Acrobat.
 
 Stampd is the option that should have existed.
@@ -248,16 +248,16 @@ Env-var form: `Stampd__Email__Smtp__Host`, `Stampd__Email__Smtp__Port`, etc.
 
 ## Comparison
 
-|  | DocuSign | DocuSeal | Documenso | **Stampd** |
-|---|---|---|---|---|
-| **License** | Proprietary | AGPL + paid Pro | AGPL + paid EE | **Apache 2.0 only** |
-| **Stack** | Closed | Ruby on Rails | TypeScript / Next.js | **C# / .NET 10** |
-| **Pricing** | Per envelope | Free + Pro tier | Free + EE tier | **Free forever** |
-| **HSM-backed signing** | Managed only | Cert in app | Cert in app | **Vault, KV, KMS** |
-| **Self-hosted** | ❌ | ✅ | ✅ | ✅ |
-| **Native .NET integration** | REST only | REST only | JS embed | **NuGet + Blazor RCL** |
-| **Database flexibility** | Managed | Postgres only | Postgres only | **SQL Server, Postgres, SQLite** |
-| **TSA flexibility** | Managed | One URL | One URL | **Pluggable provider** |
+|  | Hosted per-envelope services | Open-source platforms in other stacks | **Stampd** |
+|---|---|---|---|
+| **License** | Proprietary | AGPL + paid tier | **Apache 2.0 only** |
+| **Stack** | Closed | Ruby or TypeScript | **C# / .NET 10** |
+| **Pricing** | Per envelope | Free + paid tier | **Free forever** |
+| **HSM-backed signing** | Managed only | Cert in app | **Vault, KV, KMS** |
+| **Self-hosted** | ❌ | ✅ | ✅ |
+| **Native .NET integration** | REST only | REST or JS embed | **NuGet + Blazor RCL** |
+| **Database flexibility** | Managed | Postgres only | **SQL Server, Postgres, SQLite** |
+| **TSA flexibility** | Managed | One URL | **Pluggable provider** |
 
 ## Contributing
 
